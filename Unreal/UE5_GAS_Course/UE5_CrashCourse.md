@@ -45,3 +45,57 @@ Event Received가 호출되고 이후 그래프에서 원하는 동작을 수행
 참고 Sequence는 순차 실행되지만 두 노드 모두 Latent Task 이므로 재생과 대기가 동시에 진행된다.
 
 주의 Event Received 말고 위쪽 Exec에 연결하면 안됨 이곳은 바로 실행되는 곳임.
+
+### 21. Enemy Class
+
+EnemyCharacter class를 base로부터 생성한다.
+Enemy의 경우 ASC를 Character 자신이 소유한다.
+(Owner Actor = Avatar Actor = Enemy Character)
+생성자에서 CreateSuboject를 하고 Set Replicate 설정을 한다.
+그 이후 BeginPlay에서 InitAbitityActorInfo등 추가 설정을한다.
+
+Ability 부여는 서버 권한에서만 수행해야 하므로
+GiveStartupAbilities는 HasAuthority() 체크 후 호출한다.
+
+
+Enemy 의 ABP_Enemy_Ranged에서
+GetPawn을 Cast Chracter해서 Get Movement Component 거기서 Velocity 얻고 Vector Length.XY로 얻는 value를 speed로 사용했다.
+
+그렇지만 특이한 것은 더 좋은 방법으로 Event Blueprint Initialize Animation에서 Cast한 Chracter 자체를 Value로 Owning Chracter로 저장 한 뒤에
+
+Blueprint Thread Safe Update Animation을 override 해서 Property Access 라는 것을 사용 아까 velocity를 얻었던 경로를 노드 하나로 접근해서 speed를 set 하는 방식으로 바꾸었다.
+별개의 스레드로 돌아간다는데 추가 공부 필요
+
+확인: Blueprint Update Animation와 Blueprint Thread Safe Update Animation의 차이는
+실행 thread가 다르다 Game Thread vs Worker Thread (병렬 애니메이션 스레드)
+대신에 이 함수에서는 Actor, ChracterMovement등에 접근이 제한된다.
+게임 스레드에서 어떠한 동작을 했을 때 문제가 생길 수 있기 때문에.
+
+Property Access node는 Thread safe하게 동작한다. UE에서 권장하는 animation 방식이다.
+
+IdleToRun Blendspace를 배치하고 그 뒤에 Montage\Slot "DefaultSlot"을 두었다 그 뒤에가 Output Pose
+
+Montage가 발생하면 slot을 찾아 그 slot에서 실행 하는 것 같다.
+
+Idle,Walk,Run등은 State Machine으로 관리하고
+이벤트성 애니메이션들은 Montage로 이런식으로 앞의 anim을 무시하고
+바로 재생되도록 하는것이 기본 형태로 보인다.
+
+참고: Enemy Range와 Melee를 만들때 후자는 앞의 것을 복사했는데
+Event graph에 variable이 없어서 컴파일 문제 생긴다
+노드 우클릭하면 해당 variable 바로 생성 가능하다.
+
+각 Skeletal에 맞는 Animation을 선택하여 만들것.
+
+이번 강의로 간단한 적 캐릭터 BP를 생성하고 Idle animation을 넣고
+hit react montage의 준비를 하는 과정이 있었다.
+
+참고:
+```cpp
+void ACC_EnemyCharacter::BeginPlay()
+    ...
+	if (!HasAuthority())return;
+	
+	GiveStartupAbilities();
+```
+GiveStartupAbilities는 서버만 실행한다. 서버와 클라이언트를 분리하여 코드를 따로 작성하지 않지만 HasAuthority로 서버면 아래 함수들을 실행하고 클라이언트면 실행 안하도록 분기한다.
