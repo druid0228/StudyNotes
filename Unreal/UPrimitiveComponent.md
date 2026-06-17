@@ -1,4 +1,4 @@
-# UScene Component
+# UPrimitive Component
 
 ### Inheritance Hierarchy
 UObject -> UActorComponent -> USceneComponent
