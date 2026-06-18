@@ -99,3 +99,9 @@ void ACC_EnemyCharacter::BeginPlay()
 	GiveStartupAbilities();
 ```
 GiveStartupAbilities는 서버만 실행한다. 서버와 클라이언트를 분리하여 코드를 따로 작성하지 않지만 HasAuthority로 서버면 아래 함수들을 실행하고 클라이언트면 실행 안하도록 분기한다.
+
+### 22. Custom Ability System Component
+
+UAbilitySystemComponent를 상속받아 UCC_AbilitySystemComponent class를 생성하고
+PlayerState와 EnemyChracter의 CreatDefaultSubobject<UAbilitySystemComponent> 부분만 교체해주었다.
+커스텀 ASC를 사용하여 프로젝트에 필요한 기능을 추가하려는 것으로 보인다
