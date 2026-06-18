@@ -105,3 +105,43 @@ GiveStartupAbilities는 서버만 실행한다. 서버와 클라이언트를 분
 UAbilitySystemComponent를 상속받아 UCC_AbilitySystemComponent class를 생성하고
 PlayerState와 EnemyChracter의 CreatDefaultSubobject<UAbilitySystemComponent> 부분만 교체해주었다.
 커스텀 ASC를 사용하여 프로젝트에 필요한 기능을 추가하려는 것으로 보인다
+
+### 23. Auto Activated Abilities
+
+커스텀 ASC에서 OnGiveAbility를 override하여 기능을 추가했다.
+CCTags::CCAbilities::ActivateOnGiven 라는 새로운 태그를 추가했다.
+
+HandleAutoActivateAbility(const FGameplayAbilitySpec& AbilitySpec)
+FGameAbilitySpec의 AbilitySpec.Ability->GetAssetTags()로 태그를 얻고 tag.MatchesTagExact로
+AbilitySpec.Ability의 AssetTags에 해당 태그가 있다면 TryActivateAbility(AbilitySpec.Handle) 한 뒤에 종료하는 함수를 만들었다.
+
+헷갈리지 말 것 작성 코드에서 여러 어빌리티를 보는 것이 아닌 하나의 어빌리티에 대해 태그들을 순회하여 매칭이되면 Activate
+
+OnGiveAbility내부에서 HandleAutoActivateAbility(AbilitySpec) 를 호출했다.
+OnGiveAbility는 서버에서 Ability 하나가 given되면 동작하는 형태다.
+
+그래서 클라이언트에서도 동작하기 위한 함수가 필요한데 OnRep_ActivateAbilities()를 사용한다.
+이 함수는 ActivatableAbilities 목록이 복제(Rep)되어 갱신되었을 때 불리는 함수고 인자가 없는 것을 보다시피 어떤 것이 복제 되었는지는 알 수 없다
+```cpp
+// 서버
+void UCC_AbilitySystemComponent::OnGiveAbility(FGameplayAbilitySpec& AbilitySpec)
+	HandleAutoActivateAbility(AbilitySpec)
+
+// 클라
+void UCC_AbilitySystemComponent::OnRep_ActivateAbilities()
+	...
+	FScopedAbilityListLock ActiveScopesLock(*this);
+	for (auto& AbilitySpec : GetActivatableAbilities())
+	{
+		HandleAutoActivateAbility(AbilitySpec);
+	}
+
+// 두 개 다 UCustomAbilitySystemComponent에 포함되어야함.
+```
+그러므로 보유한 Abilities들을 순회하면서 HandleAutoActivateAbility 함수를 호출해줘야 한다.
+참고 전체 배열을 순회 해야하므로 Lock이 필요하다 현재 블록에 대해 AbilitiyList를 Lock하는 것으로 보임
+일반적인 구조같다.
+
+시작 시 한 번 Activate되고, 내부에서 Wait Gameplay Event 같은 Task를 등록해 대기하는 형태의 ability를 위해 이러한 구조를 갖는 것으로 보인다.
+
+
