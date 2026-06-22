@@ -189,3 +189,59 @@ ActivateOnGiven 태그 덕분에 Ability가 GiveAbility될 때
 ASC가 자동으로 TryActivateAbility를 호출하여 활성화된다.
 
 참고: BP_CC_EnemyBase는 최대한 비워둔다. cast할 때 불필요한 메시나 에셋 로딩 피해야함. 이 것은 공통으로 어빌리티를 부여하기 위해 만들어진 BP이므로.
+
+
+
+### 24. Overlap Test
+
+이번 강의에서는 GA_Primary event graph에서 기존의 Draw Debug Sphere of Hitbox를 BP의 node로 구현한 것에서 C++로 대체 하는 것이 목적이다.
+
+우선 이 프로젝트에서 ObjectType Pawn의 Collision preset에서 Collision Responses의 Visibility를 Block으로 설정한다. 우선 편의를 위해 이렇게 구현한 것으로 보인다.\
+보통은 Channel를 따로 파는 것이 정석으로 알고있다. HitRay, InteractRay 등등.
+
+추가: CollisionEnabled의 Query, Physics, Probe 차이\
+Query: 직접적인 검출 e.Ray\
+Physics: 충돌\
+Probe: 충돌 반응 없이 Overlap/Hit 정보만 얻기 위한 감지
+
+Query와 Probe의 차이는
+Query는 직접 Trace, Sweep, Overlap 등을 수행하는 형태이고
+Probe는 외부의 Query나 충돌이 들어오기를 기다리는 형태로 이해하면 될 것 같다.
+
+이후 Primary Ability만 갖는 특성을 만들기 위해 UCC_GameplayAbility를 상속받는 UCC_Primary class를 작성.\
+HitBoxOverlapTest BPCallable를 생성했다.\
+내부적으로는 GetWorld()->OverlapMultiByChannel() 호출이 전부지만 인자로 필요한 객체들을 셋팅했음.
+
+많이 쓰이는 형태이므로 코드 첨부
+```cpp
+	// ACS의 Actor(사용자)를 무시를 추가한다.
+	TArray<AActor*> ActorsToIgnore;
+	ActorsToIgnore.Add(GetAvatarActorFromActorInfo());	
+
+	// Ensure that the overlap test ignores the Avatar Actor
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActors(ActorsToIgnore);
+	
+	// 모든 채널을 ECR_Ignore한 뒤에 Pawn만 Block으로 Overlap은 Collision ObjectType Pawn에만
+	FCollisionResponseParams ResponseParams;
+	ResponseParams.CollisionResponse.SetAllChannels(ECR_Ignore);
+	ResponseParams.CollisionResponse.SetResponse(ECC_Pawn,ECR_Block);
+	
+	TArray<FOverlapResult> OverlapResults;
+	FCollisionShape Sphere = FCollisionShape::MakeSphere(HitBoxRadius);
+	
+	const FVector Forward = GetAvatarActorFromActorInfo()->GetActorForwardVector()*HitBoxForwardOffset;
+	const FVector HitBoxLocation = GetAvatarActorFromActorInfo()->GetActorLocation() + Forward + FVector(0,0,HitBoxElevationOffset);
+	
+	GetWorld()->OverlapMultiByChannel(OverlapResults,HitBoxLocation,FQuat::Identity,ECC_Visibility,Sphere,QueryParams,ResponseParams);
+```
+OverlapMultiByChannel은 ECC_Visibility 채널 기준으로 Overlap 검사를 하되,
+ResponseParams에서 Pawn만 Block으로 설정했기 때문에 Pawn ObjectType만 결과에 잡히도록 만든다.
+
+한번에 작성하는 것을 보여줬지만 실제로는 GetWorld()->OverlapMultiByChannel를 먼저 작성한 뒤 인자를 채워넣는 식으로 해도 문제 없다.
+
+참고: ObjectType Pawn이지만 ECC_Visibility는 ignore인 객체도 존재 할 수 있다. Channel과 ObjectType을 나누고 조합해서 생각해야한다.
+
+주의: 강의에서 영상에서는 GA_Primary의 Parent Class를 CC_Primary로 바꾸었는데,  Draw Debug Sphere of Hitbox 부분을 지우지 않고 이러한 동작을 하면 해당 노드 안에 HitBoxRadius 라는 변수가 CC_Primary.h에 똑같은 이름으로 EditDefaultsOnly속성으로 존재하고 있어서\
+CC_Primary.HitBoxRadius is not blueprint visible (BlueprintReadOnly or BlueprintReadWrite).와 같은 오류가 나왔었다.
+
