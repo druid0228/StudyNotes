@@ -289,3 +289,60 @@ payload의 Break Gameplay Event Data의 Instigator->(Get Display Name)->Append.B
 Payload.Instigator = GetAvatarActorFromActorInfo();를 설정했으므로 payload 항목에서 확인 가능한 것이다.
 
 
+### 27. Calculating Hit Direction
+
+
+우선 bDraw Debugs 분기 Print String 하던 것을 UCC_GameplayAbility 내부로 옮겨줬다.\
+ActivateAbility override 했고.\
+GEngine->AddOnScreenDebugMessage 로 작성\
+GEngine은 엔진의 전역 객체이다.
+
+노드들을 선택해서 Collapse to Function을 사용하면 함수노드로 묶어서 정리할 수 있다.
+
+
+GetHitDirection을 작성 할 것인데 여러 곳에서 재사용할 수 있으니 static 함수로 만들고, UBlueprintFunctionLibrary를 상속받아 작성했다.
+
+UBlueprintFunctionLibrary를 상속받고 UFUNCTION을 사용하면
+프로젝트 전역에서 Blueprint 노드로 사용할 수 있다.
+
+```cpp
+UENUM(BlueprintType)
+enum class EHitDirection : uint8
+{
+	Left,Right,Forward,Back
+};
+
+UCLASS()
+class CRASHCOURSE_API UCC_BlueprintLibrary : public UBlueprintFunctionLibrary
+{
+	GENERATED_BODY()
+	
+public:
+	
+	UFUNCTION(BlueprintPure)
+	static EHitDirection GetHitDirection(const FVector& TargetForward, const FVector& ToInstigator);
+	
+	UFUNCTION(BlueprintPure)
+	static FName GetHitDirectionName(const EHitDirection& Direction);
+};
+```
+
+```cpp
+	BlueprintPure
+		= 계산 전용 함수
+		= 상태 변경 X
+		= Exec 핀 없음
+
+	BlueprintCallable
+		= 실행 함수
+		= 상태 변경 가능
+		= Exec 핀 있음
+```
+
+방향 판정은 Dot과 Cross로 구현했다.
+TargetForward와 Target에서 Instigator로 향하는 방향 벡터(ToInstigator)를 이용해 계산한다.
+
+참고:
+Instigator의 Forward 방향이 필요한 것이 아니라,
+Target 기준에서 Instigator가 어느 방향에 있는지를 나타내는 벡터가 필요하다.
+
