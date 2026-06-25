@@ -346,3 +346,42 @@ TargetForward와 Target에서 Instigator로 향하는 방향 벡터(ToInstigator
 Instigator의 Forward 방향이 필요한 것이 아니라,
 Target 기준에서 Instigator가 어느 방향에 있는지를 나타내는 벡터가 필요하다.
 
+### 28. Hit React Montage
+
+
+
+Montage를 Sequence로부터 생성했다..\
+특이한 것은 Montage 하나 안에 여러 Sequnce를 넣어서 만든것\
+Montage는 관련된 애니메이션들을 하나로 묶어 관리하는 경우가 많다.\
+예 Attack_Montage - Attack1, Attack2 ....\
+Section을 나누면 원하는 것을 맞춰 쓸 수 있다.\
+기존에 만들었던 Tag에 대응하는 FName과 일치해야 하는 것에 주의해야한다.\
+합치고 Montage Sections에서 Clear 해야한다.\
+넣은 순서대로 재생되기 때문에 Clear를 통해 다음 Section으로 자동 이동하는 연결을 제거한다.
+
+주의: Play Montage는 단순 애니메이션 재생, Play Montage and Wait을 사용해야한다. 이번에 실수로 잘못써서 React Animation이 재생 안되는 문제가 생겼었다.
+
+마지막으로 Montage Jump to Section을 사용하여 Section Name에 HitDirectionName(FName)을 연결하여 원하는 section으로 이동하게 만들었다.
+
+참고: Start Section을 사용해도 원하는 Section부터 시작할 수 있다. 이것은 시작 section만 지정하는 것이다. Jump를 이용하면 확장성이 있어서 기다리고 재생, 조건에 만족하면 재생등이 가능하다. 보통 Jump를 쓴다고 한다.
+
+```cpp
+Play Montage
+
+일반 Anim Montage 재생 함수
+SkeletalMeshComponent를 직접 지정해야 한다.
+몽타주만 재생하며 Gameplay Ability와는 연동되지 않는다.
+
+Play Montage and Wait
+
+Gameplay Ability 전용 Ability Task
+Avatar의 Mesh를 자동으로 사용한다.
+Ability가 몽타주 종료를 기다릴 수 있다.
+Completed / Interrupted / BlendOut / Cancelled 등의 이벤트를 제공한다.
+GAS에서는 일반적으로 이 노드를 사용한다.
+```
+
+Play Montage는 이럴 때 사용한다.\
+Gameplay Ability 밖에서 몽타주를 재생할 때. ex. 죽음연출\
+몽타주 종료를 기다릴 필요가 없을 때. ex. 문 열림 애니메이션
+
