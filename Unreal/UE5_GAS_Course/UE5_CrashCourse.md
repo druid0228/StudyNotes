@@ -385,3 +385,10 @@ Play Montage는 이럴 때 사용한다.\
 Gameplay Ability 밖에서 몽타주를 재생할 때. ex. 죽음연출\
 몽타주 종료를 기다릴 필요가 없을 때. ex. 문 열림 애니메이션
 
+### 29. Primary Attack Particles
+
+
+Primary Montage에서 Notifies를 하나 더 추가하고\
+Play Niagara Particle Effect를 추가\
+Niagara System에 준비된 이펙트를 넣고\
+Location Offset을 조절하여 캐릭터의 공격 위치에 맞게 이펙트를 배치했다.
