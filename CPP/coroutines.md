@@ -168,6 +168,9 @@ struct Task
         std::suspend_always final_suspend() noexcept
             return {};
 
+        void return_value(T value)    // 값을 반환하면 return_value 그렇지 않다면 return_void
+            return value
+
         void return_void()
             return
 
@@ -175,6 +178,13 @@ struct Task
             std::terminate();
     };
 };
+
+4가지는 필수
+    get_return_object()
+    initial_suspend()
+    final_suspend()
+    unhandled_exception()
+
 ```
 
 2. awaitable : 별도 객체에 3가지 함수를 구현해줘야 한다.
