@@ -392,3 +392,119 @@ Primary Montage에서 Notifies를 하나 더 추가하고\
 Play Niagara Particle Effect를 추가\
 Niagara System에 준비된 이펙트를 넣고\
 Location Offset을 조절하여 캐릭터의 공격 위치에 맞게 이펙트를 배치했다.
+
+
+## Section 4: Attributes
+
+### 30. Intro
+
+### 31. Attribute Set
+
+
+UAttributeSet class를 상속받아 클래스를 작성했다.\
+AbilitySystem 폴더 아래 작성했다. 
+
+우선 ATTRIBUTE_ACCESSORS 매크로를 우선 작성했다.\
+AttributeSet.h에 주석으로 일반적인 사용법이 나와있다.
+```cpp
+#define ATTRIBUTE_ACCESSORS(ClassName, PropertyName) \
+	GAMEPLAYATTRIBUTE_PROPERTY_GETTER(ClassName, PropertyName) \
+	GAMEPLAYATTRIBUTE_VALUE_GETTER(PropertyName) \
+	GAMEPLAYATTRIBUTE_VALUE_SETTER(PropertyName) \
+	GAMEPLAYATTRIBUTE_VALUE_INITTER(PropertyName)
+```
+해당 매크로를 사용하면 BoilerPlate 작성을 덜어준다.\
+GetHealthAttribute(),GetHealth(), SetHealth, InitHeath() 를 자동 생성해줌.
+
+
+BoilerPlate
+```cpp
+#define ATTRIBUTE_ACCESSORS(ClassName,PropertyName) \
+	GAMEPLAYATTRIBUTE_PROPERTY_GETTER(ClassName, PropertyName) \
+	GAMEPLAYATTRIBUTE_VALUE_GETTER(PropertyName) \
+	GAMEPLAYATTRIBUTE_VALUE_SETTER(PropertyName) \
+	GAMEPLAYATTRIBUTE_VALUE_INITTER(PropertyName)
+
+UCLASS()
+class CRASHCOURSE_API UCC_AttributeSet : public UAttributeSet
+{
+	GENERATED_BODY()
+public:
+	virtual void GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const override;
+	
+	UPROPERTY(BlueprintReadOnly,Replicated = OnRep_Health)
+	FGameplayAttributeData Health;
+
+	UFUNCTION()
+	void OnRep_Health(const FGameplayAttributeData& OldValue);
+	
+	ATTRIBUTE_ACCESSORS(ThisClass,Health);
+};
+
+void UCC_AttributeSet::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	
+	DOREPLIFETIME_CONDITION_NOTIFY(ThisClass,Health,COND_None,REPNOTIFY_Always);
+}
+void UCC_AttributeSet::OnRep_Health(const FGameplayAttributeData& OldValue)
+{
+	GAMEPLAYATTRIBUTE_REPNOTIFY(ThisClass,Health,OldValue);
+}
+```
+
+FGameplayAttributeData를 BlueprintReadOnly로 쓰는 이유\
+일반적으로는 Gameplay Effect를 통해 변경되는 것이 권장되기 때문에.
+
+복제되는 Attribute는 RepNotify를 구현해야한다.\
+GAMEPLAYATTRIBUTE_REPNOTIFY는 GAS의 Prediction 및 Attribute 동기화가 정상적으로 동작하도록 연결해 준다.
+
+복제되는 Attribute는 GetLifetimeReplicatedProps()에서 등록한다.
+
+REPNOTIFY_Always는 복제 패킷이 받았을 때 값이 같더라도 RepNotify를 항상 호출한다.
+
+FGameplayAttributeData  : GAS가 추적할 수 있는 Attribute 데이터. GameplayEffect가 이 값을 변경할 수 있다.
+
+UPROPERTY(ReplicatedUsing = OnRep_Health) : 이 값이 서버에서 클라이언트로 복제될 때 OnRep_Health를 호출해라. 이것은 복제 가능한 변수임을 알리는 것 실제 등록은 아님.
+
+void OnRep_Health(const FGameplayAttributeData& OldValue) : 클라이언트가 서버로부터 새 Health 값을 받았을 때 실행될 함수. 
+
+GAMEPLAYATTRIBUTE_REPNOTIFY(UCC_AttributeSet, Health, OldValue) : Health 복제가 일어났다는 사실을 GAS 내부 시스템에 알려준다.\
+예측 보정, 동기화
+
+DOREPLIFETIME_CONDITION_NOTIFY : 실제 네트워크 복제 목록에 등록한다.\
+
+
+| 코드 | 실행 위치 | 역할 |
+|------|-----------|------|
+| `FGameplayAttributeData Health` | 서버 / 클라이언트 | 실제 Attribute 값을 저장하는 데이터. Gameplay Effect가 이 값을 변경한다. |
+| `UPROPERTY(ReplicatedUsing = OnRep_Health)` | 선언부 | Health가 복제될 때 `OnRep_Health()`를 호출하도록 지정한다. 복제 등록은 하지 않는다. |
+| `void OnRep_Health(const FGameplayAttributeData& OldValue)` | 주로 클라이언트 | 서버로부터 새로운 Health를 받았을 때 실행된다. `OldValue`는 복제 전 값이다. |
+| `ATTRIBUTE_ACCESSORS(ThisClass, Health)` | 서버 / 클라이언트 | `GetHealth()`, `SetHealth()`, `InitHealth()`, `GetHealthAttribute()` 등의 접근 함수를 자동 생성한다. |
+| `GAMEPLAYATTRIBUTE_REPNOTIFY(ThisClass, Health, OldValue)` | 주로 클라이언트 | GAS 내부 시스템에 Health가 복제되었음을 알린다. Prediction 및 Attribute 동기화를 정상 처리한다. |
+| `GetLifetimeReplicatedProps()` | 엔진(복제 정보 초기화) | 이 클래스에서 어떤 멤버를 네트워크 복제 대상으로 사용할지 등록하는 함수이다. 직접 호출하지 않으며 엔진이 사용한다. |
+| `DOREPLIFETIME_CONDITION_NOTIFY(ThisClass, Health, COND_None, REPNOTIFY_Always)` | 엔진(복제 정보 초기화) | Health를 실제 복제 목록에 등록한다. `REPNOTIFY_Always`로 값이 같아도 `OnRep`를 항상 호출한다. |
+
+
+```
+서버
+Health 변경
+      │
+      ▼
+언리얼 Replication
+      │
+      ▼
+클라이언트 Health 멤버 갱신
+      │
+      ▼
+언리얼이 OnRep_Health() 호출
+      │
+      ▼
+GAMEPLAYATTRIBUTE_REPNOTIFY()
+      │
+      ▼
+ASC에게 "Health가 변경됐다" 전달
+```
+
+
+이해를 위한 추가: FGameplayAttributeData Replicated 와 DOREPLIFETIME_CONDITION_NOTIFY 만 해도 서버에서 값이 변경될 때 클라이언트의 AttributeSet의 Data도 변경은 된다. 하지만 GAS에서도 알리기 위해 OnRep 함수를 연결해서 GAMEPLAYATTRIBUTE_REPNOTIFY 를 호출하는 것이다.
