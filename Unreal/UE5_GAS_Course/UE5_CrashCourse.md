@@ -508,3 +508,16 @@ ASC에게 "Health가 변경됐다" 전달
 
 
 이해를 위한 추가: FGameplayAttributeData Replicated 와 DOREPLIFETIME_CONDITION_NOTIFY 만 해도 서버에서 값이 변경될 때 클라이언트의 AttributeSet의 Data도 변경은 된다. 하지만 GAS에서도 알리기 위해 OnRep 함수를 연결해서 GAMEPLAYATTRIBUTE_REPNOTIFY 를 호출하는 것이다.
+
+### 32. Adding the Attribute Set
+
+
+AttributeSet을 어디에 넣을 것인가?\
+Player는 PlayerState, Enemy는 EnemyCharacter\
+즉 일반적으로 ASC를 소유하는 객체에 함께 생성한다.
+
+멤버 변수로 선언하고 생성자에서 CreateDefaultSubobject()로 생성한다.\
+UPROPERTY()는 추가하지만 따로 속성을 넣진 않는다. AttributeSet은 Component가 아니라 UObject를 상속받는 객체이므로 Component 관련 설정은 사용하지 않는다.
+
+참고 : GAS에서 ASC와 Attribute Set을 사용했을 때 Health, Mana와 같은 Attribute는 AttributeSet이 갖고 있게 된다. 그렇다면 HealthComponent, ManaComponent는 어디에 쓰느냐?\
+보통 쓰지 않는다. 하지만 그렇다고 Component를 안쓰는 것은 아니다. 스탯이 아닌 기능은 여전히 Component를 사용한다.
