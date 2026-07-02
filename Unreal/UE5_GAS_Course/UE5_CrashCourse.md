@@ -59,16 +59,16 @@ GiveStartupAbilities는 HasAuthority() 체크 후 호출한다.
 
 
 Enemy 의 ABP_Enemy_Ranged에서
-GetPawn을 Cast Chracter해서 Get Movement Component 거기서 Velocity 얻고 Vector Length.XY로 얻는 value를 speed로 사용했다.
+GetPawn을 Cast Character해서 Get Movement Component 거기서 Velocity 얻고 Vector Length.XY로 얻는 value를 speed로 사용했다.
 
-그렇지만 특이한 것은 더 좋은 방법으로 Event Blueprint Initialize Animation에서 Cast한 Chracter 자체를 Value로 Owning Chracter로 저장 한 뒤에
+그렇지만 특이한 것은 더 좋은 방법으로 Event Blueprint Initialize Animation에서 Cast한 Character 자체를 Value로 Owning Character로 저장 한 뒤에
 
 Blueprint Thread Safe Update Animation을 override 해서 Property Access 라는 것을 사용 아까 velocity를 얻었던 경로를 노드 하나로 접근해서 speed를 set 하는 방식으로 바꾸었다.
 별개의 스레드로 돌아간다는데 추가 공부 필요
 
 확인: Blueprint Update Animation와 Blueprint Thread Safe Update Animation의 차이는
 실행 thread가 다르다 Game Thread vs Worker Thread (병렬 애니메이션 스레드)
-대신에 이 함수에서는 Actor, ChracterMovement등에 접근이 제한된다.
+대신에 이 함수에서는 Actor, CharacterMovement등에 접근이 제한된다.
 게임 스레드에서 어떠한 동작을 했을 때 문제가 생길 수 있기 때문에.
 
 Property Access node는 Thread safe하게 동작한다. UE에서 권장하는 animation 방식이다.
@@ -103,7 +103,7 @@ GiveStartupAbilities는 서버만 실행한다. 서버와 클라이언트를 분
 ### 22. Custom Ability System Component
 
 UAbilitySystemComponent를 상속받아 UCC_AbilitySystemComponent class를 생성하고
-PlayerState와 EnemyChracter의 CreatDefaultSubobject<UAbilitySystemComponent> 부분만 교체해주었다.
+PlayerState와 EnemyCharacter의 CreatDefaultSubobject<UAbilitySystemComponent> 부분만 교체해주었다.
 커스텀 ASC를 사용하여 프로젝트에 필요한 기능을 추가하려는 것으로 보인다
 
 ### 23. Auto Activated Abilities
@@ -616,3 +616,54 @@ check(조건) assert만\
 | `checkf()` (UE) | `check` + 사용자 지정 에러 메시지 출력 |
 | `ensure()` (UE) | 오류를 기록하지만 가능한 한 계속 실행 |
 | `ensureMsgf()` (UE) | `ensure` + 사용자 지정 메시지 출력 |
+
+
+### 34. Attribute Widget Component
+
+Attribute의 체력 마나등을 시각화 하기 위해 위젯을 추가한다.\
+UWidgetComponent로 부터 상속 받아 클래스 작성
+
+attribute의 변경을 알기 위해 Attribute Set과 ASC의 handle이 필요하다.\
+character, attribute set, asc에 대하여\
+참조만 할 것이므로 TWeakObjectPtr을 사용한다.
+
+Character는 GetOwner로 나머지는 Get 함수를 작성한다.\
+base Character에 virtual을 구현하고 Player와 Enemy에 각각 구현.
+
+중요: ASC등이 초기화 된 뒤에 가져와야 하므로 Delegate를 작성하여 포인터를 받는다.
+```cpp
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FASCInitialize,UAbilitySystemComponent*, ASC,UAttributeSet*,AS );
+
+class BaseCharacter
+{
+	...
+	UPROPERTY(BlueprintAssignable)
+	FASCInitialize OnASCInitialized;
+}
+```
+이후 초기화가 완료되는
+```
+GetAbilitySystemComponent()->InitAbilityActorInfo(GetPlayerState(),this);
+```
+아래에서 Broadcast()\
+Player는 서버와 클라이언트 양쪽에서 ASC 초기화가 일어나므로 양쪽에서 Broadcast한다.\
+Enemy는 BeginPlay에서 InitAbilityActorInfo 후, HasAuthority 체크로 return하기 전에 Broadcast한다.
+
+WidgetComponent에 BeginPlay에서 Init함수를 호출하고\
+그 뒤에 valid 체크를해서 안되었을때\
+Character->OnASCInitialized.AddDynamic()으로\
+함수에 연결해서 초기화 된걸 등록하도록 한다.
+
+이 상태에서 build했을때 에러가 생기는데\
+Widget을 추가했으므로 Build.cs에서 UMG를 추가해주어야한다.
+
+
+
+
+
+
+
+
+
+
+
