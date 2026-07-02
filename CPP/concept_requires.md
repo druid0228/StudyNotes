@@ -96,7 +96,7 @@ requires는 컴파일러가 특정 식(Expression)이 유효한지 검사하여 
 std::integral<T>
 std::floating_point<T>
 std::same_as<T,U>
-std::derived_from<T,U>  // chracter, actor -> true
+std::derived_from<T,U>  // Character, actor -> true
 std::is_base_of<U,T>  // actor, character
 std::convertible_to<T,U>   // int, float -> true
 std::constructible_from<T,Args...> // FString, const char*
