@@ -658,12 +658,87 @@ Character->OnASCInitialized.AddDynamic()으로\
 Widget을 추가했으므로 Build.cs에서 UMG를 추가해주어야한다.
 
 
+### 35. Post Gameplay Effect Execute
 
 
+cc_attributeset 에서
+```cpp
+virtual void PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data) override;
+```
+Gameplay Effect에 의해 Attribute 값이 실제로 변경된 직후 호출되는 함수이다.
 
+override해서 구현 한 내용
+```cpp
+void UCC_AttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data)
+{
+	Super::PostGameplayEffectExecute(Data);
+	
+	if (!bAttributeSetInitialized)
+	{
+		bAttributeSetInitialized = true;
+		OnAttributeSetInitialized.Broadcast();
+	}
+}
+```
+이번 강의에서는 초기화 되었을 때 플래그를 변경하고 Broadcast로 초기화 이후를 알리기 위해 사용되었다.\
+나중에 Attribute가 변경된 이후 추가 작업이 필요하다면 이 함수에서 처리하게 된다.
 
+.h
+```cpp
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FAttributeSetInitialized);
 
+virtual void PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data) override;
+	
+	UPROPERTY(BlueprintAssignable)
+	FAttributeSetInitialized OnAttributeSetInitialized;
+```
+Delegate에 `BlueprintAssignable`을 지정한 이유는 C++에서는 필요 없지만\
+추후 BP도 초기화 완료 이벤트에 바인딩할 수 있도록 하기 위해 사용한다.\
+주로 Delegate는 BlueprintAssignable과 같이 쓴다.
 
+AttributeSet의 `bAttributeSetInitialized`를 확인하여
 
+- 초기화되지 않았다면 `OnAttributeSetInitialized` Delegate를 구독한다.
+- 이미 초기화되어 있다면 `BindToAttributeChanges()`를 호출한다.
 
+즉, Attribute 초기화 이후의 동작으로 안전하게 이어지도록 설계되었다.
 
+```cpp
+BeginPlay()
+{
+	if (!IsASCInitialized())
+	{
+		CrashCharacter->OnASCInitialized.AddDynamic(this,&ThisClass::OnASCInitialized);
+		return;
+	}
+	InitializeAttributeDelegate();
+}
+void UCC_WidgetComponent::OnASCInitialized(UAbilitySystemComponent* ASC, UAttributeSet* AS)
+{
+	AttributeSet = Cast<UCC_AttributeSet>(AS);
+	AbilitySystemComponent = Cast<UCC_AbilitySystemComponent>(ASC);
+	
+	if (!IsASCInitialized())return;
+	InitializeAttributeDelegate();
+}
+```
+
+함수들이 복잡해지고 있는데 흐름도에 따라 작성 된 것이다.
+
+BeginPlay에서 ASC가 초기화되어 있는지 확인한다.
+
+- ASC가 초기화되어 있지 않다면 `OnASCInitialized` Delegate에 바인딩하고 대기한다.
+- ASC가 이미 초기화되어 있다면 바로 `InitializeAttributeDelegate()`로 넘어간다.
+
+`InitializeAttributeDelegate()`에서는 AttributeSet의 `bAttributeSetInitialized`를 확인한다.
+
+- AttributeSet이 아직 초기화되지 않았다면 `OnAttributeSetInitialized` Delegate에 바인딩하고 대기한다.
+- 이미 초기화되어 있다면 바로 `BindToAttributeChanges()`를 호출한다.
+
+즉 전체 흐름은
+
+ASC 초기화 확인
+→ AttributeSet 초기화 확인
+→ Attribute 변경 Delegate 바인딩
+
+순서로 진행된다.
