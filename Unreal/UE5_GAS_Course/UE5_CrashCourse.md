@@ -742,3 +742,193 @@ ASC 초기화 확인
 → Attribute 변경 Delegate 바인딩
 
 순서로 진행된다.
+
+### 36. Attribute Widget
+
+주의! 강의 여러번 보라고 공지함
+
+목적 Widget을 만드는데 Attribute가 변경되면 UI가 자동으로 바뀌는 구조를 만든다.
+
+GAS와 UMG를 느슨하게 연결하는 구조를 만든다.\
+UCC_AttributeWidget을 이용하여 Health, Mana 등 어떤 Attribute도 동일한 방식으로 추가 가능하게 설계하였다.
+
+전체 구조 요약
+```
+ASC
+      │
+Attribute 변경
+      │
+Delegate 발생
+      │
+WidgetComponent가 수신
+      │
+AttributeWidget 호출
+      │
+Blueprint Event 호출
+      │
+ProgressBar 업데이트
+```
+---
+**AttributeWidget**
+
+UCC_AttributeWidget을 만들었다. UUserWidget으로 부터 상속받았다.\
+특정 Attribute 하나를 표시하는 것이 역할이다.\
+우리는 형식을 Attribute, MaxAttribute 이렇게 2개를 갖는 형태로 통일해두었다.
+
+```cpp
+FGameplayAttribute Attribute;
+```
+왜 GameplayAttribute를 저장할까?\
+이건 실제 값이 아니다. 속성 자체를 의미한다 Attribute(Property)를 식별하는 정보이다.\
+실제 값은 AttributeSet 안에 있다.\
+나는 일종의 메타 데이터로 이해하고 있다.
+
+`MatchesAttributes` 이 Widget이 담당하는 Attribute인지 체크하는 간단한 함수\
+Widget이 어떤 Attribute를 담당하는지 판별하는 필터 역할이다.
+```cpp
+bool UCC_AttributeWidget::MatchesAttributes(const TTuple<FGameplayAttribute, FGameplayAttribute>& Pair)const 
+{
+	return Attribute == Pair.Key && MaxAttribute == Pair.Value;
+}
+```
+예. Widget : Health,MaxHealth 일 때 Health MaxHealth가 와야 매치
+
+`OnAttributeChanges()` 가장 중요
+```cpp
+UFUNCTION(BlueprintImplementableEvent,meta=(DisplayName = "On Attribute Change"))
+	void BP_OnAttributeChange(float NewValue,float NewMaxValue);
+
+void UCC_AttributeWidget::OnAttributeChanages(const TTuple<FGameplayAttribute, FGameplayAttribute>& Pair,
+	UCC_AttributeSet* AttributeSet)
+{
+	const float AttributeValue = Pair.Key.GetNumericValue(AttributeSet);
+	const float MaxAttributeValue = Pair.Value.GetNumericValue(AttributeSet);
+	
+	BP_OnAttributeChange(AttributeValue,MaxAttributeValue);
+}
+```
+AttributeSet을 받는 이유 GameplayAttribute는 실제 값이 아니라 Attribute(Property)를 식별하는 정보이다. 값은 모른다\
+값은 AttributeSet에 있기때문에 필요하다.
+
+`BlueprintImplementableEvent` 가장 중요. C++에서는 숫자만 전달한다\
+Blueprint에서 ProgressBar, Text, Animation 등에서 자유롭게 구현한다.\
+C++ : 데이터 / Blueprint : 표현
+
+(추가 참고: `BlueprintNativeEvent`의 경우 C++에서 함수명_Implementation으로 구현 가능 그것을 BP에서 override 가능)
+
+---
+**WidgetComponent**
+
+중앙 관리자의 역할\
+ASC와 AttributeWidget 사이를 연결하는 브리지 역할
+
+AttributeMap
+```cpp
+TMap<FGameplayAttribute,FGameplayAttribute> AttributeMap;
+
+Health → MaxHealth
+Mana → MaxMana
+...
+```
+Attribute와 MaxAttribute의 Pair를 저장하고 모든 Pair를 순회한다.
+
+`BindWidgetToAttributeChanges()`\
+하는 일
+```
+1. Widget가 AttributeWidget인지 확인
+↓
+2. 담당 Attribute인지 확인
+↓
+3. 초기값 갱신
+↓
+4. Delegate 등록
+```
+
+초기값을 넣는 이유 Delegate가 변경될 때 호출 되기 때문에\
+게임 시작시 먼저 값을 보여주기 위해 필요함
+
+Delegate 등록
+
+```cpp
+AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(Pair.Key)
+    .AddLambda(...)
+```
+ASC의 함수를 이용. 값이 변경될때 불리는 Delegate 등록. 본 강의에서는 Lambda로
+
+\
+WidgetTree를 순회하는 이유\
+WidgetComponent는 Root UserWidget 하나를 가진다.\
+그 안에는 여러 Child Widget이 존재할 수 있다.
+
+BindWidgetToAttributeChanges()를 따로 만든 이유\
+Root Widget과 Child Widget 모두 동일한 작업을 수행하므로 함수로 분리하였다.
+
+실제 코드 첨부
+```cpp
+void UCC_WidgetComponent::BindToAttributeChanges()
+{
+	// TODO: Listen for changes to Gameplay Attribute and update our widgets accordingly
+	for (const TTuple<FGameplayAttribute,FGameplayAttribute>&Pair : AttributeMap)
+	{
+		BindWidgetToAttributeChanges(GetUserWidgetObject(),Pair);	// for checking the owned widget object
+		
+		GetUserWidgetObject()->WidgetTree->ForEachWidget([this,&Pair](UWidget* ChildWidget)
+		{
+			BindWidgetToAttributeChanges(ChildWidget,Pair);
+		});
+	}
+}
+
+void UCC_WidgetComponent::BindWidgetToAttributeChanges(UWidget* WidgetObject,
+	const TTuple<FGameplayAttribute, FGameplayAttribute>& Pair) const
+{
+	UCC_AttributeWidget* AttributeWidget = Cast<UCC_AttributeWidget>(WidgetObject);
+	if (!IsValid(AttributeWidget))return;	// We only care about CC Attribute Widgets
+	if (!AttributeWidget->MatchesAttributes(Pair))return;	// Only subscribe for matching Attributes
+		
+	AttributeWidget->OnAttributeChanages(Pair,AttributeSet.Get());	// for initial value
+		
+	AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(Pair.Key).AddLambda(
+		[this,AttributeWidget,&Pair](const FOnAttributeChangeData& AttributeChangeData)
+		{
+			AttributeWidget->OnAttributeChanages(Pair,AttributeSet.Get());	// For changes during the game
+		});
+}
+```
+궁금증들
+1. TMap으로 생성된 된 데이터를 왜 TTuple로 순회할까?\
+	: TMap을 순회하면 원소 타입이 TTUple이다
+2. 왜 &Pair만 캡쳐를 레퍼런스로 했을까?
+	: 나머지는 포인터라 값 복사 비용이 매우 작다. 함수에서 &Pair로 레퍼런스로 받았기 때문에\
+	람다에 Pair로 넘기면 값이 복사된다.\
+	*다만 Delegate에 저장되는 Lambda라면 값 캡처가 더 안전할 수도 있다.
+3. UFUNCTION() 만 쓰는 경우
+	: Dynamic Delegate(AddDynamic)에서 Reflection을 사용하기 때문에 UFUNCTION()이 필요하다.
+
+
+추가: 
+
+```
+Actor
+│
+└── UCC_WidgetComponent   (상속 : UWidgetComponent)
+        │
+        │  ← WidgetComponent는 Widget 하나를 소유
+        ▼
+   UUserWidget (Root Widget)
+        │
+        ├── ProgressBar (Widget)
+        ├── TextBlock (Widget)
+        ├── UCC_AttributeWidget (Health)
+        ├── UCC_AttributeWidget (Mana)
+        └── ...
+```
+
+추가:
+
+WidgetComponent는 Root Widget이 무엇인지 신경 쓰지 않는다.
+
+WidgetTree를 순회하여 UCC_AttributeWidget만 찾아
+자동으로 ASC Delegate를 연결한다.
+
+즉 UI 구조가 변경되어도 WidgetComponent의 코드는 수정하지 않아도 된다.
