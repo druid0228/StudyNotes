@@ -932,3 +932,72 @@ WidgetTree를 순회하여 UCC_AttributeWidget만 찾아
 자동으로 ASC Delegate를 연결한다.
 
 즉 UI 구조가 변경되어도 WidgetComponent의 코드는 수정하지 않아도 된다.
+
+### 36. Attribute Widget Blueprints
+
+
+BP_CC_WidgetComponent를 작성\
+Player Character에 Component Add했다.
+
+작성한 Widgets
+
+WBP_PlayerStatsWidget\
+WBP_HealthBar\
+WBP_ManaBar
+
+
+오른쪽 위에서 Full Screen에서 Desired로\
+Full Screen은 Viewport 전체 크기를 기준으로 하고,\
+Desired는 내부 Widget들이 요구하는 최소 크기를 기준으로 한다.\
+이번 Widget은 WidgetComponent에 붙는 작은 UI이므로 Desired로 설정한다.
+
+WBP_HealthBar 에서\
+ProgressBar를 추가. Wrap With으로 Size Box\
+Size Box에서 크기 설정
+
+Details에서 Is Variable
+
+Class Defaults에서 Attributes의 Attribute, Max Attribute를 설정한다.
+
+Graph에서 Event On Attribute Change로 Set Percent 설정\
+value와 max value로 safe divide해서 progress bar Percent를 설정한다.
+
+WBP_ManaBar도 HealthBar와 동일
+
+WBP_PlayerStatsWidget은 Health와 Mana 를 넣고\
+wrap은 Vertical box로 스타일 한다.
+
+이렇게 만든 Widget으로\
+BB_CC_WidgetComponent의 UserInterface\
+WidgetClass에 등록한다. 그리고 Space는 World에서 Screen으로
+
+또한 WidgetComponent의 AttributeMap에 Health와 Mana를 등록한다.
+
+Enemy는 BaseEnemy에서 WidgetClass를 HealthBar만 넣는 것으로 한다.
+
+
+문제: Enemy는 체력바가 초기화 안되는 문제가 있었다. ProgressBar 셋팅이 안됐었음. Attribute Init의 순서를 Health MaxHealth 순서에서 Max Health Health 순서로
+
+
+문제: Ded server에서는 괜찮았지만 Listen Server에서 다른 플레이어의 Mana Progress가 0으로 나오는 문제가 있었다. Enemy 체력바와 같은 문제 Max Mana 먼저 초기화 하여 해결.
+
+1. Health = 100 적용
+2. 첫 Attribute 적용 직후 OnAttributeSetInitialized Broadcast
+3. Widget이 현재 값을 읽음
+   Health = 100
+   MaxHealth = 0   ← 아직 초기화 전
+4. Percent = Health / MaxHealth
+   100 / 0
+5. Safe Divide 때문에 결과 0
+6. 체력바가 비어 보임
+
+문제의 근본 원인:
+Widget 초기화 시점에 AttributeSet의 모든 Attribute가 초기화된 것이 아니라,\
+첫 Attribute 적용 직후 OnAttributeSetInitialized가 Broadcast되었다.
+
+Health가 먼저 적용되면 Widget은 Health=100, MaxHealth=0 상태를 초기값으로 읽는다.\
+이후 MaxHealth가 100으로 적용되더라도 현재 코드는 Pair.Key, 즉 Health 변경 Delegate만 등록하고 있으므로\
+MaxHealth 변경만으로는 Widget이 다시 갱신되지 않는다.
+
+따라서 MaxHealth를 먼저 초기화한 뒤 Health를 초기화하면,\
+Health 변경 시점에는 MaxHealth가 이미 준비되어 있어 ProgressBar가 정상적으로 계산된다.
