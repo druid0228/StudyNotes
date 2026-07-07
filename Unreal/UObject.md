@@ -1,10 +1,5 @@
 # UObject
 
-### Inheritance Hierarchy
-AActor -> AInfo -> APlayerState
-
----
-
 언리얼 엔진의 거의 모든 객체는 UObject를 상속받는다.
 
 ```cpp
