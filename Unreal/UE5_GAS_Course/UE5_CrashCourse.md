@@ -1001,3 +1001,94 @@ MaxHealth 변경만으로는 Widget이 다시 갱신되지 않는다.
 
 따라서 MaxHealth를 먼저 초기화한 뒤 Health를 초기화하면,\
 Health 변경 시점에는 MaxHealth가 이미 준비되어 있어 ProgressBar가 정상적으로 계산된다.
+
+### 37. Apply Damage Gameplay Effect
+
+이번 강의에서는 Gameplay Effect를 생성했다.\
+Blueprint class의 GameplayEffect\
+내부에서 Attribute.Health를 선택하여\
+Modifier에서
+
+- Attribute : Health
+- Modifier Op : Add
+- Magnitude : -10
+
+을 설정하였다.
+
+GameplayBility(GA_Primary)에서 해당 Damage Effect를 적용했다.
+
+기존의 Hit Box Overlap Test의 결과 Actor Array에서 Send Hit React Event to Actor아래 추가적으로\
+For Each Loop -> ApplyGameplayEffectSpecToTarget을 했다.\
+Get Ability System Component form Actor Info에서 Target을 설정하고\
+Make Outgoing Spec에서 GE_PlayerDamage를 선택하여 Spec Handle에 연결했다.
+
+이미지
+```
+                    공격자 (Self)
+
+               Get ASC From ActorInfo
+                       │
+                       ▼
+                 공격자 ASC
+                       │
+             MakeOutgoingSpec()
+                       │
+             Damage GameplayEffectSpec
+                       │
+                       ▼
+────────────────────────────────────────────────────────
+HitActors
+    │
+    ▼
+ForEach
+    │
+    ├── Enemy A ── Get ASC ─┐
+    │                       │
+    ├── Enemy B ── Get ASC ─┼──► ApplyGameplayEffectSpecToTarget
+    │                       │        ▲
+    └── Enemy C ── Get ASC ─┘        │
+                                     │
+                          Damage GameplayEffectSpec
+```
+
+
+버그: 서버에서는 ProgressBar가 업데이트 되었는데 클라이언트에서는 안되었음.\
+리슨 서버와 공격 클라이언트에서는 정상처럼 보였지만, 제3자 클라이언트의 ProgressBar가 갱신되지 않았다.\
+원인: 오타\
+`ReplicatedUsing`대신 `Replicated` 를 사용하고 있었다.
+```cpp
+UPROPERTY(BlueprintReadOnly,ReplicatedUsing = OnRep_Health)
+	FGameplayAttributeData Health;
+```
+Health 값 자체는 Replication으로 변경된다.
+
+하지만 OnRep_Health()가 호출되지 않기 때문에\
+GAMEPLAYATTRIBUTE_REPNOTIFY()가 실행되지 않는다.
+```cpp
+void UCC_AttributeSet::OnRep_Health(const FGameplayAttributeData& OldValue)
+{
+	GAMEPLAYATTRIBUTE_REPNOTIFY(ThisClass,Health,OldValue);
+}
+```
+이것이 불릴 수 없었기 때문에 제대로 동작 하지 않았다.
+
+순서
+```
+클라이언트
+Health 값이 복제됨
+↓
+OnRep_Health(OldValue) 호출
+↓
+GAMEPLAYATTRIBUTE_REPNOTIFY(ThisClass, Health, OldValue)
+↓
+GAS(ASC)에게 "Health가 OldValue에서 NewValue로 변경되었음"을 알림
+(내부적으로 Attribute Change Delegate를 Broadcast)
+↓
+Widget 업데이트
+```
+`Replicated`는 값만 복제한다.
+
+GAS는 `GAMEPLAYATTRIBUTE_REPNOTIFY()`를 통해
+Attribute Change Delegate를 Broadcast하므로,\
+`ReplicatedUsing`을 사용하지 않으면\
+Delegate를 사용하는 Widget은 변경을 감지하지 못한다.
