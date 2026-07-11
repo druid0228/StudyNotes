@@ -1092,3 +1092,29 @@ GAS는 `GAMEPLAYATTRIBUTE_REPNOTIFY()`를 통해
 Attribute Change Delegate를 Broadcast하므로,\
 `ReplicatedUsing`을 사용하지 않으면\
 Delegate를 사용하는 Widget은 변경을 감지하지 못한다.
+
+
+### 38. Curve Tables
+
+Curve Table의 사용 이유 기존에 GE_PlayerDamage에서\
+damage값은 하드코딩된 Scalable Float이었다.\
+이것을 레벨에 따라 동작하게 하고 싶어서 작성했다.
+
+Miscellaneous에서 Curve Table을 고르고 Cubic으로 생성했다.
+
+key를 추가하여 초기값(1) 과 최대값(10)을 만들고\
+그래프로 만들었다.\
+키를 하나 선택하고 우클릭을 해서 Auto, Linear 그 이외 선택들로 그래프의 형태를 바꿀 수 있다.
+
+CurveTable을 작성하고 Scalable Float Magnitude의 옵션에서 Use CurveTable
+
+앞에 값에 곱한 값이 결과값이므로 -1로 설정하여 damage를 설정
+
+
+GA_CC_Primary에서 Make Outgoing Spec에 Level을 변경하면 이제 레벨별로 Curve Table에서 값을 가져와 사용하는데,\
+variable로 직접 빼서 쓰는게 아니라 Get Ability Level로 가져와서 쓴다.
+
+Ability Level은 GiveAbility할 때 넘겨주는 `FGameAbilitySpec`에 들어있고\
+생성자에서 설정도 가능하다.
+
+이번 시간은 curve table의 생성에 관련해서만 진행했고, 다음 강의에선 level up했을때 어떻게 변경하는지 살펴 볼 것이다.
