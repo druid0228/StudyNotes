@@ -1118,3 +1118,18 @@ Ability Level은 GiveAbility할 때 넘겨주는 `FGameAbilitySpec`에 들어있
 생성자에서 설정도 가능하다.
 
 이번 시간은 curve table의 생성에 관련해서만 진행했고, 다음 강의에선 level up했을때 어떻게 변경하는지 살펴 볼 것이다.
+
+### 40. A note on logical AND and OR operators
+
+다음 강의 41강의 강의 자료 실수에 대한 노트만 있다.
+
+```cpp
+if (IsValid(GetAvatarActor()) && !GetAvatarActor()->HasAuthority()) return;	// 잘못된 사용
+
+if (!IsValid(GetAvatarActor()) || !GetAvatarActor()->HasAuthority()) return; // 로 변경해야함
+
+
+AActor* Avatar = GetAvatarActor(); // 제일 좋은 형태
+if (!IsValid(Avatar)) return; 
+if (!Avatar->HasAuthority()) return; 
+```
