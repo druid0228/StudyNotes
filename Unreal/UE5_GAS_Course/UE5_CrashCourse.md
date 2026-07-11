@@ -933,7 +933,7 @@ WidgetTree를 순회하여 UCC_AttributeWidget만 찾아
 
 즉 UI 구조가 변경되어도 WidgetComponent의 코드는 수정하지 않아도 된다.
 
-### 36. Attribute Widget Blueprints
+### 37. Attribute Widget Blueprints
 
 
 BP_CC_WidgetComponent를 작성\
@@ -1002,7 +1002,7 @@ MaxHealth 변경만으로는 Widget이 다시 갱신되지 않는다.
 따라서 MaxHealth를 먼저 초기화한 뒤 Health를 초기화하면,\
 Health 변경 시점에는 MaxHealth가 이미 준비되어 있어 ProgressBar가 정상적으로 계산된다.
 
-### 37. Apply Damage Gameplay Effect
+### 38. Apply Damage Gameplay Effect
 
 이번 강의에서는 Gameplay Effect를 생성했다.\
 Blueprint class의 GameplayEffect\
@@ -1094,7 +1094,7 @@ Attribute Change Delegate를 Broadcast하므로,\
 Delegate를 사용하는 Widget은 변경을 감지하지 못한다.
 
 
-### 38. Curve Tables
+### 39. Curve Tables
 
 Curve Table의 사용 이유 기존에 GE_PlayerDamage에서\
 damage값은 하드코딩된 Scalable Float이었다.\
