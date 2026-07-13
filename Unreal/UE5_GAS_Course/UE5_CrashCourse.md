@@ -1133,3 +1133,68 @@ AActor* Avatar = GetAvatarActor(); // 제일 좋은 형태
 if (!IsValid(Avatar)) return; 
 if (!Avatar->HasAuthority()) return; 
 ```
+
+### 40. Leveling Up Abilities
+
+Level up과 set을 위해 AbilitySystemComponent에서 함수를 작성했다.
+
+```cpp
+UFUNCTION(BlueprintCallable,Category="Crash|Abilities")
+	void SetAbilityLevel(TSubclassOf<UGameplayAbility>AbilityClass, int32 Level);
+	
+	UFUNCTION(BlueprintCallable,Category="Crash|Abilities")
+	void AddAbilityLevel(TSubclassOf<UGameplayAbility>AbilityClass, int32 Level = 1);
+```
+
+```cpp
+void UCC_AbilitySystemComponent::AddAbilityLevel(TSubclassOf<UGameplayAbility> AbilityClass, int32 Level)
+{
+	if (!IsValid(GetAvatarActor())) return; 
+	if (!GetAvatarActor()->HasAuthority()) return; 
+	
+	if (FGameplayAbilitySpec* AbilitySpec = FindAbilitySpecFromClass(AbilityClass))
+	{
+		AbilitySpec->Level += Level;
+		MarkAbilitySpecDirty(*AbilitySpec);
+	}
+}
+```
+
+GA_CC_Primary Ability class를 인자로 넘길 것이므로 UGameplayAbility를 인자로 주었다
+
+구현에서 FindAbilitiySpecFromClass로 AbilitySpec을 찾고,\
+level에 직접 더하거나 설정했다.
+
+그 뒤에 MarkAbilitySpecDirty를 호출한다.
+
+`FGameplayAbilitySpec`을 직접 수정했으므로,
+ASC에 해당 Spec의 복제 정보가 변경되었음을 표시한다.
+
+서버에서 Spec의 변경 내용을 클라이언트에 복제할 수 있도록
+Fast Array의 Dirty 상태로 표시하는 역할을 한다.
+
+참조: Dirty는 "더러워졌다"가 아니라 "원본과 달라져서 갱신이 필요한 상태"를 뜻한다.
+
+
+이 뒤에 레벨업을 시험하기 위해 치트를 만들었다.\
+Input action을 만들어 L키와 바인딩하고 L키를 누르면 레벨업 하도록
+
+Controller에 직접 구현하지 않고 BP_Character의 Event Graph에서,\
+IA_LevelUpAbility를 직접 추가\
+GetAbilitySystemComponent -> Cast to CC_AbilitySystemComponent\
+Started에 연결하고 CC_AbilitySystemComponent에서 AddAbilityLevel를 호출
+
+키를 눌러서 ability level을 올려 데미지가 올라가는 것을 확인했다.
+
+주의할 점은 `AddAbilityLevel()`이 서버 Authority에서만 실제 변경을 수행한다는 것이다.
+
+싱글 플레이나 Listen Server의 서버 플레이어에서는 바로 동작하지만,
+멀티플레이 클라이언트가 로컬에서 직접 호출하면
+`HasAuthority()` 검사에서 반환되므로 레벨이 변경되지 않는다.
+
+멀티에서 테스트 해보기 위해
+Add Custom Event를 만들고 Replicates 설정을 Run on Server로\
+그리고 아까 Graph의 맨 앞 Event를 제외한 전체 과정을 Custom Event로 옮기고\
+IA_LevelUpAbility의 Started에 Custom Event를 붙이면\
+`Run on Server`로 설정한 Custom Event를 클라이언트가 호출하면,\
+해당 RPC가 서버로 전달되고 서버에서 Ability Level 변경 로직이 실행된다.
