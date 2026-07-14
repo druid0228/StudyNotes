@@ -1134,7 +1134,7 @@ if (!IsValid(Avatar)) return;
 if (!Avatar->HasAuthority()) return; 
 ```
 
-### 40. Leveling Up Abilities
+### 41. Leveling Up Abilities
 
 Level up과 set을 위해 AbilitySystemComponent에서 함수를 작성했다.
 
@@ -1198,3 +1198,8 @@ Add Custom Event를 만들고 Replicates 설정을 Run on Server로\
 IA_LevelUpAbility의 Started에 Custom Event를 붙이면\
 `Run on Server`로 설정한 Custom Event를 클라이언트가 호출하면,\
 해당 RPC가 서버로 전달되고 서버에서 Ability Level 변경 로직이 실행된다.
+
+## Section 5: Chracter Death
+### 42. Section 5 Intro
+
+### 43. Health Changes in Native Code
