@@ -1199,7 +1199,90 @@ IA_LevelUpAbility의 Started에 Custom Event를 붙이면\
 `Run on Server`로 설정한 Custom Event를 클라이언트가 호출하면,\
 해당 RPC가 서버로 전달되고 서버에서 Ability Level 변경 로직이 실행된다.
 
-## Section 5: Chracter Death
+## Section 5: Character Death
 ### 42. Section 5 Intro
 
 ### 43. Health Changes in Native Code
+
+Health가 0 이하가 되었을 때 C++에서 감지하고, 캐릭터의 사망상태를 관리하는 기반을 구현했다.
+
+BaseCharacter에 bAlive 추가
+```cpp
+UPROPERTY(BlueprintReadOnly,meta=(AllowPrivateAccess="true"),Replicated)
+bool bAlive = true;
+
+bool IsAlive()const{return bAlive;}
+void SetAlive(bool bAliveStatus){bAlive = bAliveStatus;}
+```
+UPROPERTY는 blueprint에서도 private 변수 볼 수 있게.\
+중요: 이번 구조에서는 Health 같은 수치는 Attribute로 관리하고, bAlive 같은 단순 상태는 Character의 일반 상태 변수로 관리한다.
+
+
+OnHealthChanged callback과 HandleDeath를 추가했다.\
+HandleRespawn도 추가했다.
+
+```cpp
+protected:
+void ACC_BaseCharacter::OnHealthChanged(const FOnAttributeChangeData& AttributeChangeData)
+{
+	if (AttributeChangeData.NewValue<=0.0f)
+	{
+		HandleDeath();
+	}
+}
+
+virtual void ACC_BaseCharacter::HandleDeath()
+{
+	bAlive=false;
+}
+
+public:
+virtual void ACC_BaseCharacter::HandleRespawn()
+{
+	bAlive=true;
+}
+
+```
+추가: bAlive는 Replicated 이므로
+```cpp
+#include "Net/UnrealNetwork.h"
+
+void ACC_BaseCharacter::GetLifetimeReplicatedProps(
+    TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+    DOREPLIFETIME(ThisClass, bAlive);
+}
+```
+를 구현해야한다.
+
+
+FOnAttributeChangeData를 받아 Attribute의 값을 확인하고 Death를 체크한다.
+
+HandleDeath는 virtual로 만들어서 Character와 Enemy가 오버 라이드 가능하게 했다.
+
+
+`GetAbilitySystemComponent()`로 ASC를 가져온 뒤, ASC의 `GetGameplayAttributeValueChangeDelegate`를 사용하여\
+OnHealthChanged를 바인딩했다.
+
+Character는 `PossessedBy` HasAuthority 아래, `OnRep_PlayerState` 맨 아래 구현했다.\
+Enemy는 `BeginPlay` HasAuthority 아래 구현했다.\
+정확히는 InitializeAttribute 아랫쪽이다.
+```cpp
+UCC_AttributeSet* CC_AttributeSet = Cast<UCC_AttributeSet>(GetAttributeSet());
+	if (!IsValid(CC_AttributeSet))return;
+	GetAbilitySystemComponent()->GetGameplayAttributeValueChangeDelegate(CC_AttributeSet->GetHealthAttribute()).AddUObject(this,&ThisClass::OnHealthChanged);
+```
+코드의 내용은 같다.
+
+`GetAttributeSet()`으로 AttributeSet을 받고
+
+`GetGameplayAttributeValueChangeDelegate` 의 인자로 CC_Attribute의 `GetHealthAttribute()`를 넘긴다.\
+주의 : GetHealth의 Float값이 아니라 HealthAttribute가 필요하다.\
+
+이후 AddUObject로 클래스의 포인터와 함수포인터를 넘겨 바인딩했다.\
+이제 Health Attribute가 변경될 때 마다 C++객체에서 사망 여부를 감지 할 수 있게 됐다.
+
+마지막으로 HandleDeath에서 디버그 메시지를 출력하게 했다.
+
