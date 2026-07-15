@@ -1286,3 +1286,153 @@ UCC_AttributeSet* CC_AttributeSet = Cast<UCC_AttributeSet>(GetAttributeSet());
 
 마지막으로 HandleDeath에서 디버그 메시지를 출력하게 했다.
 
+### 44. Attribute Change Async Task
+
+Blueprint에서 Attribute 변경을 감지할수 있는 AsyncTask (Latent Node)를 C++로 구현하였다.
+
+`Latent Node`란\
+Blueprint에서 시계 아이콘이 표시되는 비동기 노드다.
+
+- 호출 즉시 모든 작업이 끝나지 않는다.
+- 작업 완료나 특정 이벤트 발생 시 나중에 Output Execution Pin이 실행된다.
+- 하나 이상의 비동기 Output Execution Pin을 가질 수 있다.
+
+예
+- Play Montage and Wait
+- Wait Gameplay Event
+
+
+BlueprintAsyncActionBase를 상속 받아서 BP에서도 사용 할수 있는 Async Task를 작성했다.
+
+출력 Execution Pin을 만들기 위해
+```cpp
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(
+    FOnAttributeChange,
+    FGameplayAttribute, Attribute,
+    float, NewValue,
+    float, OldValue
+);
+```
+Delegate 작성
+
+```cpp
+UPROPERTY(BlueprintAssignable)
+FOnAttributeChange OnAttributeChange
+```
+Blueprint에서 이벤트 처럼 사용할 수 있도록 `BlueprintAssignable`\
+`BlueprintAssignable`이 있으면 Blueprint가 Delegate에 이벤트를 Bind할 수 있다\
+**BlueprintAssignable가 있어야 On Attribute Change Execution Pin이 만들어진다.**
+
+Delegate의 매개변수는 데이터 출력 핀이 된다.
+
+- Delegate 변수 이름 `OnAttributeChanged`
+  → `On Attribute Changed` Execution Pin
+- `Attribute`
+  → Attribute 출력 핀
+- `NewValue`
+  → New Value 출력 핀
+- `OldValue`
+  → Old Value 출력 핀
+
+
+Task 생성용 Static 함수
+
+```cpp
+UFUNCTION(BlueprintCallable,meta=(BlueprintInternalUseOnly = "true"))
+	static UCC_AttributeChangeTask* ListenForAttributeChange(UAbilitySystemComponent* AbilitySystemComponent,FGameplayAttribute Attribute);
+```
+역할
+- Task 생성
+- ASC 저장
+- Listen할 Attribute 저장
+- Delegate 바인딩
+- Task 반환
+
+추가: meta=(BlueprintInternalUseOnly = "true")\
+이 함수가 Blueprint 사용자가 일반 함수처럼 직접 호출하기 위한 것이 아니라,\
+Async Node를 구성하는 내부 Factory Function임을 나타낸다.
+
+`BlueprintCallable`은 Reflection과 Blueprint 노드 생성을 위해 필요하지만,
+`BlueprintInternalUseOnly`를 통해 일반 호출용 함수노드로 사용되는 것을 막는다.
+
+내부 저장 변수
+```cpp
+TWeakObjectPtr<UAbilitySystemComponent> ASC;
+FGameplayAttribute AttributeToListenFor;
+```
+ASC는 소유권 필요 없으므로 TWeakObjectPtr을 사용했다.
+
+Task 생성 과정
+```cpp
+UCC_AttributeChangeTask* UCC_AttributeChangeTask::ListenForAttributeChange(
+	UAbilitySystemComponent* AbilitySystemComponent, FGameplayAttribute Attribute)
+{
+	UCC_AttributeChangeTask* WaitforAttributeChangeTask = NewObject<UCC_AttributeChangeTask>();	// Task 객체를 생성한다.
+
+	WaitforAttributeChangeTask->ASC = AbilitySystemComponent;	// 내부 변수 저장
+	WaitforAttributeChangeTask->AttributeToListenFor = Attribute;
+	
+	if (!IsValid(AbilitySystemComponent))
+	{
+		WaitforAttributeChangeTask->RemoveFromRoot();
+		return nullptr;
+	}
+	
+	// Attribute Delegate 바인딩
+	AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(Attribute).AddUObject(WaitforAttributeChangeTask,&UCC_AttributeChangeTask::AttributeChanged);
+	
+	return WaitforAttributeChangeTask;
+}
+```
+
+```cpp
+void UCC_AttributeChangeTask::AttributeChanged(const FOnAttributeChangeData& Data)
+{
+	OnAttributeChange.Broadcast(Data.Attribute,Data.NewValue,Data.OldValue);
+}
+```
+바인딩 한 함수에서 `FOnAttributeChangeData`를 갖고 Broadcast()
+
+순서
+```
+Health 변경
+↓
+ASC Delegate 호출
+↓
+AttributeChanged()
+↓
+Broadcast()
+↓
+Blueprint Output Pin 실행
+```
+
+
+```cpp
+void UCC_AttributeChangeTask::EndTask()
+{
+	if (ASC.IsValid())
+	{
+		ASC->GetGameplayAttributeValueChangeDelegate(AttributeToListenFor).RemoveAll(this);
+	}
+	
+	SetReadyToDestroy();
+	MarkAsGarbage();
+}
+```
+1. ASC Delegate 안에 AttributeChanged가 등록 되어있기 때문에 지운다.\
+AttributeToListenFor의 Delegate중에서 this에 바인딩 된 것들을 지움
+
+2. `SetReadyToDestroy()` 엔진에게 이 객체의 역할이 끝났으니 지워달라는 예약
+3. `MarkAsGarbage()` 이 UObject를 Garbage 상태로 표시한다.
+
+
+| 호출 | 결과 |
+|---|---|
+|SetReadyToDestroy()만|Async Action이 완료되었음을 알린다. GameInstance에 등록되어 있었다면 등록을 해제한다.|
+|MarkAsGarbage()만|UObject를 Garbage 상태로 표시한다. 실제 정리는 GC가 담당한다.|
+|둘 다|Async Action 종료 절차를 수행하고 객체를 Garbage 상태로도 표시한다.|
+|둘 다 없음|다른 강한 참조나 등록이 없다면 GC될 수 있지만, Delegate 바인딩이 남아 Task가 계속 호출될 수 있다.|
+
+추가: `SetReadyToDestroy()`는 직접 삭제 예약이라기보다,\ 
+UBlueprintAsyncActionBase가 더 이상 살아 있을 필요가 없음을 알리고 GameInstance 유지 등록을 해제하는 함수다.\
+실제 메모리 해제는 GC가 담당한다.
