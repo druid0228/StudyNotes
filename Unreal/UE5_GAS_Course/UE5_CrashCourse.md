@@ -1465,3 +1465,31 @@ Blueprint 노드의 반환된 Async Task 객체를 출력 핀으로 노출한다
 Event OnEndAbility에서 그 Task를 갖고 `EndTask()`를 호출한다\
 이유: Task는 Delegate를 등록한 상태 Ability가 끝났는데 Task를 정리하지 않으면\
 Delegate가 계속 살아 있게 되기 때문에
+
+### 46. Death Ability
+
+저번 강의와 마찬가지로 Death Ability를 만들어보는 Challenge로 시작
+
+Death Gameplay Tag를 생성하고,
+`CC_GameplayAbility`를 부모로 하는 Death Ability를 생성했다.
+
+Instance Per Actor, Local Predicted
+
+`Local Predicted`는 로컬 클라이언트에서 Ability를 먼저 실행하고,
+이후 서버에서 실행 가능 여부를 검증한다.
+
+공격, 점프, 입력 기반 스킬처럼 즉각적인 반응이 필요한 Ability에 주로 사용한다.
+
+Ability 활성화 되면 PlayMontageAndWait으로 재생. Death Montage는 Variable로 promote한다.\
+이 변수를 Set하는걸 Base Character에서 해야하나 고민도 했었는데,\
+강의에서는 GA_CC_DeathAbility의 ChildBP를 캐릭마다 각각 만들어서 class Defaults로 셋팅했다.
+
+이후 Startup Ability에 각각 넣어줌
+
+ListenForHealthChange에서 Health를 <= 로 비교하여 branch true일때\
+GAS의 Try Activate Abilites by Tag로 Death Ability를 실행하게 했다.
+
+강의에서는 Make Literal Gameplay Tag -> Make Gameplay Tag Container from Tag 순서로 연결해줬는데\
+내가 시도할때는 Make Gameplay Tag Container from Tag만 쓰고 동작이 잘 되었어서 의문이 생겼다.
+
+이 예제에서 결과는 같지만, 태그 값을 여러곳에서 재사용하거나, 조건에 따라 태그를 바꿔서 전달할때 Make Literal Gameplay Tag를 쓸 수 있다고 한다.
