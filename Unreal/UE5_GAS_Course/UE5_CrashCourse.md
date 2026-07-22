@@ -1492,4 +1492,5 @@ GAS의 Try Activate Abilites by Tag로 Death Ability를 실행하게 했다.
 강의에서는 Make Literal Gameplay Tag -> Make Gameplay Tag Container from Tag 순서로 연결해줬는데\
 내가 시도할때는 Make Gameplay Tag Container from Tag만 쓰고 동작이 잘 되었어서 의문이 생겼다.
 
-이 예제에서 결과는 같지만, 태그 값을 여러곳에서 재사용하거나, 조건에 따라 태그를 바꿔서 전달할때 Make Literal Gameplay Tag를 쓸 수 있다고 한다.
+이 예제에서 결과는 같지만, `Make Literal Gameplay Tag`는 태그를 별도의 값으로 만든 뒤
+다른 노드에 전달하거나 재사용할 때 유용하다.
