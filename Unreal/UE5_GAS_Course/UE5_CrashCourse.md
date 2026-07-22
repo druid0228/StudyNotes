@@ -1436,3 +1436,32 @@ AttributeToListenFor의 Delegate중에서 this에 바인딩 된 것들을 지움
 추가: `SetReadyToDestroy()`는 직접 삭제 예약이라기보다,\ 
 UBlueprintAsyncActionBase가 더 이상 살아 있을 필요가 없음을 알리고 GameInstance 유지 등록을 해제하는 함수다.\
 실제 메모리 해제는 GC가 담당한다.
+
+### 45. Listen for Attribute Change Ability
+
+이번 강의에서는 이전 강의에서 만든 AttributeChangeTask를 갖고 Health의 변경을 감지하는 Ability를 만들었다.
+
+Player, Enemy 공통으로 사용할 Ability이다.
+
+Asset Tags와 Instancing Policy, Net Execution Policy를 설정했다.\
+- Asset Tag : ActivateOnGiven
+- Instancing Policy : Instance Per Actor
+- Net Execution Policy : Server Initiated
+
+BP의 내용 자체는 간단하게 ListenForAttributeChange node를 생성하고 Print String으로 Health의 New Value를 Print하게 만들었다.\
+AbilitySystemComponent를 ActorInfo에서 가져와 Health Attribute를 ListenForAttributeChange에 전달한다.
+
+Task 클래스를 Blueprint 변수 타입으로 사용하기 위해\
+`UCLASS(BlueprintType,meta=ExposedAsyncProxy = AsyncTask))` 를 작성\
+Async Task Output 출력 핀을 생성 하기 위해서 설정한다.
+
+`BlueprintType`\
+Blueprint에서 변수 타입으로 사용할 수 있게 한다.
+
+`ExposedAsyncProxy`\
+Blueprint 노드의 반환된 Async Task 객체를 출력 핀으로 노출한다.
+
+이후 Async Task Output을 Promote to Variable로 저장,\
+Event OnEndAbility에서 그 Task를 갖고 `EndTask()`를 호출한다\
+이유: Task는 Delegate를 등록한 상태 Ability가 끝났는데 Task를 정리하지 않으면\
+Delegate가 계속 살아 있게 되기 때문에
