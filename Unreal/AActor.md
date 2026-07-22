@@ -28,6 +28,17 @@ AttachToActor()
 AttachToComponent()
 ```
 
+### Owner와 Attach의 차이
+| 구분    | Owner                      | Attach                                   |
+| ----- | -------------------------- | ---------------------------------------- |
+| 의미    | **논리적인 소유 관계**             | **공간적인 부모-자식 관계**                        |
+| 위치 영향 | ❌ 없음                       | ✅ 부모 Transform을 따라감                      |
+| 목적    | 권한, 팀, 데미지, 생성자 추적         | 물체를 붙여서 함께 움직임                           |
+| 함수    | `SetOwner()`, `GetOwner()` | `AttachToActor()`, `AttachToComponent()` |
+
+Owner은 누가 소유하는가 Attach는 누구에게 붙어있는가
+
+
 ### RootComponent
 Actor의 기준이 되는 Component
 
