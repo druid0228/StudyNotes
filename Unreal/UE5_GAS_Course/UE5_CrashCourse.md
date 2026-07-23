@@ -1494,3 +1494,116 @@ GAS의 Try Activate Abilites by Tag로 Death Ability를 실행하게 했다.
 
 이 예제에서 결과는 같지만, `Make Literal Gameplay Tag`는 태그를 별도의 값으로 만든 뒤
 다른 노드에 전달하거나 재사용할 때 유용하다.
+
+
+### 47. Applying Tags with Gameplay Effects
+
+Dead Montage가 실행되는 동안 Hit React가 발동하는 것을 막기 위해\
+기존에는 bAlive를 확인하여 막았고 충분히 올바른 방법이지만,\
+이번에는 Gameplay Tag를 이용하기 위해 수정
+
+새로운 태그를 추가했다 `CCTags.Status.Dead`
+
+`GE_Death` GamePlay Effect를 생성 GA_CC_Death와는 다른 객체임에 주의
+
+- Duration Policy : Infinite
+- Stacking : Aggregate By Target, Stack Limit Count = 1
+- Components : Grant Tags to Target Actor
+GE가 제거될 때까지 대상의 AbilitySystemComponent(ASC)에 적용되어 유지된다.\
+같은 대상에게는 항상 하나의 Stack만 유지한다.\
+Component를 이용하여 Gameplay Tag를 부여할수있다.\
+Infinite는 시간이 아니라 직접 Remove Gameplay Effect를 호출할 때까지 유지된다.
+
+추가: Gameplay Effect Class Default
+* Aggregate By Source : 시전자마다 Stack을 따로 관리한다.
+```
+Player A
+Player B
+        ↓
+      Enemy
+```
+stack limit이 3이라면
+```
+Player A
+  └─ 3 Stack
+Player B
+  └─ 3 Stack
+```
+시전자별로 각각 따로 관리
+* Aggregate By Target : 시전자가 누구인지 신경쓰지 않음
+stack limit이 5일경우 A B가 다 걸어도 Enemy는 5
+예시: 독 Stack vs Slow,Ammor Break
+
+* Stack Limit Count : 동일 Gameplay Effect가 중첩될 수 있는 최대 개수.\
+State 계열은 보통 1, Poison/Bleed/Buff 등은 여러 Stack을 사용하는 경우가 많다.
+
+추가 : Duration Policy 예시\
+```
+* Instant
+	데미지
+	힐
+	마나 회복
+	경험치 획득
+Duration
+	10초 공격력 증가
+	5초 이동속도 감소
+	3초 기절
+Infinite
+	Dead
+	Equipped(장착 상태)
+	Passive Aura
+	Transformation(변신 상태)
+	Quest 상태
+	Permanent Buff
+```
+
+`GA_CC_DeathAbility`에서
+```
+GetAbilitySystemComponentFromActorInfo()
+↓
+Make Outgoing Spec
+    Effect = GE_Death
+↓
+Apply Gameplay Effect Spec To Self
+```
+`Apply Gameplay Effect Spec To Self`를 이용하여\
+Death Ability가 시작되면 GE_Death를 자신에게 적용하여 `Status.Dead` Tag를 부여한다.
+
+
+`GA_CC_HitReact`에서\
+```
+Get Ability System Component From Actor Info
+↓
+Has Matching Gameplay Tag
+↓
+CCTags.Status.Dead
+↓
+Branch
+```
+`Has Matching Gameplay Tag`를 이용해 `Status.Dead`를 갖고 확인한다.\
+Dead Montage 실행중에는 Hit React를 안하게 된다.
+
+**주의**: 한번 실수로 Event Received에 연결안하고 Exec pin에 연결해서 Crash가 났었음\
+이유: Cache Hit Direction Vectors에서 `GetAvatarActorFromActorInfo` 혹은 `Instigator`가 Null 이었어서.\
+이후 C++에도 방어코드 추가
+```c++
+void UCC_HitReact::CacheHitDirectionVectors(AActor* Instigator)
+{
+AActor* AvatarActor = GetAvatarActorFromActorInfo();
+
+	if (!IsValid(AvatarActor) || !IsValid(Instigator))
+	{
+		UE_LOG(LogTemp, Error, TEXT("Invalid AvatarActor or Instigator"));
+		return;
+	}
+	...
+}
+```
+
+**Death Montage 종료후**
+Respawn 처리를 위한 Custom Event를 만들어서,\
+Death Montage 종료 후에 Respawn Custom Event를 호출한다.\
+`Remove Gameplay Effect From Owner With Granted Tags`를 이용하여\
+`Status.Dead` Tag를 제거한다. Stacks To Remove는 1\
+Gameplay Effect가 제거되면서 Status.Dead Tag도 함께 제거된다.
+제거되면 이후에 다시 HitReact가 가능해진다.\
