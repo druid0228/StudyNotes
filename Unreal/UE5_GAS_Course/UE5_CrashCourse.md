@@ -1607,3 +1607,56 @@ Death Montage 종료 후에 Respawn Custom Event를 호출한다.\
 `Status.Dead` Tag를 제거한다. Stacks To Remove는 1\
 Gameplay Effect가 제거되면서 Status.Dead Tag도 함께 제거된다.
 제거되면 이후에 다시 HitReact가 가능해진다.\
+
+
+### 48. Resetting Attributes
+
+Attribute를 Reset하는 Gameplay Effect를 만들었다.
+
+challenge를 실패했음 아직 개념이 다 안 잡혀서 뭘 만들어야 할지 헷갈렸다.\
+기존의 InitializeAttributesEffect를 복붙하면 되는 것이었다.\
+참고: GameplayEffect는 C++에서도 작성할 수 있지만 대부분 BP에서 작성.\
+이유는 이것은 주로 데이터 중심의 정의 객체다. Damage, Heal, -10, +40\
+대상에게 일정한 효과를 적용하는 데이터 객체. C++에서는 언제 누구에게 적용할지만 작성\
+예외적: 데미지 공식 계산 등
+
+GE_ResetAttributes를 생성했다. 내용은 InitializeAttributes와 동일\
+이후 BaseEnemyBP 변수에 GE_ResetAttributes를 세팅
+
+
+Death Ability 수정\
+Sequence를 이용하여
+1. DeadTag 제거
+2. Reset Attributes
+3. End Ability
+
+Reset Attributes는
+```
+Has Authority -> cast to CC_BaseCharacter -> call `Reset Attributes`
+```
+
+`HasAuthority()`\
+Attribute는 Replication이 되므로 Reset은 서버에서만 수행한다.\
+추가 하지 않으면 클라이언트와 서버 양쪽에서 실행될 수 있고\
+불필요하게 두번 적용되거나, 예측과 서버값이 충돌하는 상황도 생길 수 있다.\
+
+중요: End Ability 추가.\
+Respawn 후 다시 죽지 않는 문제가 발생했다.\
+원인은 GA_Death가 종료되지 않았기 때문에
+
+추가: `TryActivateAbilitiesByTag()`는 이미 활성화된 Ability를 기본적으로 다시 실행하지 않는다\
+여러번 실행되어야 하는 Ability는 작업이 끝난후 `EndAbility()`를 호출해야 다음에도 실행 가능하다.
+
+
+
+**Health Bar 숨기기**
+Health Bar Widget에서 Health <= 0 으로 branch 해서\
+SetVisibility를 Collapsed | Visible 하도록
+
+Hidden과 Collapsed 차이
+* Hidden
+	* 화면에만 보이지 않는다.
+	* 레이아웃에는 남아있다.
+* Collapsed
+	* 화면 표시와 레이아웃 계산에서 제외된다.
+	* Draw Call도 발생하지 않아 더 효율적이다.
