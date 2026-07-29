@@ -1660,3 +1660,50 @@ Hidden과 Collapsed 차이
 * Collapsed
 	* 화면 표시와 레이아웃 계산에서 제외된다.
 	* Draw Call도 발생하지 않아 더 효율적이다.
+
+
+### 49. Respawning Characters
+
+DeathAbility의 Reset Attribute 이후에\
+Player Start를 찾아 새로운 위치에 Respawn 하도록 만들었다.\
+(엄밀히 말하면 새로운 Actor를 생성하는 Respawn이 아니라 기존 Actor를 Teleport하는 방식이다.)
+
+이번 강의는 전부 BP GA_CC_DeathAbility에서 진행
+
+HasAuthority를 밖으로 빼고 True 뒤에 Sequence를 추가\
+
+CCBaseCharacter를 Respawn에도 써야 하기 때문에,\
+Variable로 Promote 하고 기존의 cast 부분까지만 묶어서 Cache CC Base Character로 분리
+
+다음 seq에서 Reset Attribute.
+
+마지막 seq에서 Respawn the Character 부분을 구현했다.
+
+```
+PlayerStart 찾기
+CC Base Character
+    ↓
+Get Controller
+    ↓
+Find Player Start
+```
+Find Player Start는 Target으로 Gamemode, Player로 PlayerController를 받는다.
+
+주의: seq 이전에 HasAuthority로 체크를 하기 때문에 뒤에서 Gamemode를 써도 괜찮다.\
+(GameMode는 서버에만 존재한다.)
+
+Find Player Start로 얻은 Player Start의 Get Actor Location으로 위치를 얻고,\
+그것을 CCBase Character의 Set Actor Location에 연결하면 된다.
+
+결과로 Respawn할때 Player Start중에 하나중에 점유되지 않은 Player Start를 우선으로 찾아서 이동한다.
+
+
+Find Player Start는
+```
+GameMode
+    ↓
+FindPlayerStart()
+        ↓
+ChoosePlayerStart()
+```
+내부적으로 이렇게 호출
