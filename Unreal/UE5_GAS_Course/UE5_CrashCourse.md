@@ -1707,3 +1707,58 @@ FindPlayerStart()
 ChoosePlayerStart()
 ```
 내부적으로 이렇게 호출
+
+### 50. Event Instigator in the Attribute Set
+
+적을 처치했을 때 경험치 획득, 레벨업 등의 처리를 하기 위해\
+Gameplay Event를 이용하여 처치 이벤트(Kill Scored)를 전달하는 방법을 구현했다.
+
+`PostGameplayEffectExecute()`에서 `FGameplayEffectModCallbackData` 를 통해\
+어떤 Attribute가 변경되었는지, 변경 정보(EvaluatedData), 적용 대상(Target), Effect Context(Instigator, EffectCauser 등)에 접근할 수 있다.
+
+```cpp
+if (Data.EvaluatedData.Attribute == GetHealthAttribute() && GetHealth()<=0.f)
+	{
+		FGameplayEventData Payload;
+		Payload.Instigator = Data.Target.GetAvatarActor();
+		UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(Data.EffectSpec.GetEffectContext().GetInstigator(),CCTags::Events::KillScored,Payload);
+	}
+```
+
+위의 코드에서 변경된 데이터가 HealthAttribute고 0보다 같거나 작았을 때 즉 죽었을 때를 동작하게했다.
+
+`Payload.Instigator`에는 죽은 대상의 Avatar를 넣었다.\
+강의에서는 Payload.Instigator를 단순히 죽은 대상을 전달하기 위한 용도로 사용했다.
+
+공격한 Player는 `Data.EffectSpec.GetEffectContext().GetInstigator()` 를 통해 얻었다.\
+SendGameplayEventToActor의 첫 번째 인자는 이벤트를 받을 Actor이다.\
+공격자(Player)의 ASC로 KillScored 이벤트를 보낸다.
+
+CCTags.Events.KillScored Event tag를 추가했다.\
+GA_CC_ListenForKillScored를 작성하고\
+Wait Gameplay Event에서 KillScored tag로 기다리게 작성했다.
+
+그 이후 Print debug로 잘 동작됨을 확인했다.
+
+주의: 강의에서는 Payload.Instigator에 Target의 Actor를 넣었지만\
+```cpp
+Payload.Instigator = 공격자;
+Payload.Target = 죽은 대상;
+```
+으로 사용하는 편이 더 직관적이다.
+
+참고:
+Effect Context의
+
+- Instigator : 효과의 책임 주체(Player)
+- EffectCauser : 실제 효과를 발생시킨 Actor(Projectile, Trap 등)
+
+는 서로 다를 수 있다.
+
+예:\
+Instigator = Player
+EffectCauser = Projectile
+Target = Enemy
+
+이 경우 경험치는 Instigator(Player)에게 지급하고,
+Projectile 제거 등은 EffectCauser를 이용하여 처리할 수 있다.
