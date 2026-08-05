@@ -1762,3 +1762,25 @@ Target = Enemy
 
 이 경우 경험치는 Instigator(Player)에게 지급하고,
 Projectile 제거 등은 EffectCauser를 이용하여 처리할 수 있다.
+
+
+### 51. Handle Respawn
+
+Death 처리는 거의 완료했지만 `HandleRespawn()`을 호출하고 있지 않았다.\
+
+```cpp
+class CRASHCOURSE_API ACC_BaseCharacter
+{
+	UFUNCTION(BlueprintCallable,Category="Crash|Death")
+		virtual void HandleRespawn();
+}
+```
+현재는 bAlive=true만 하는 중이지만,\
+추후에 Player나 Enemy에 따라 다른 동작 및 연출을 하도록 할 수 있다.
+
+이번 강의에서는 GA_CC_DeathAbility에서 HandleRespawn()을 호출하도록 수정했다.
+
+기존에 CCBaseCharacter를 Authority일때만 Cache했지만,\
+HandleRespawn()은 Authority와 관계없이 호출될 수 있으므로\
+캐싱을 Authority 체크 이전으로 따로 이동했다.
+
