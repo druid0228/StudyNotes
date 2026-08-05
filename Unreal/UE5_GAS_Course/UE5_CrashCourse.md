@@ -1784,3 +1784,6 @@ class CRASHCOURSE_API ACC_BaseCharacter
 HandleRespawn()은 Authority와 관계없이 호출될 수 있으므로\
 캐싱을 Authority 체크 이전으로 따로 이동했다.
 
+## Section 6: Enemy Combat
+### 52. Section 6 Intro
+
