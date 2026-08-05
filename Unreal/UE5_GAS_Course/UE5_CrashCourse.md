@@ -1883,3 +1883,66 @@ FClosestActorWithTagResult UCC_BlueprintLibrary::FindClosestActorWithTag(const U
 BP에서 Input의 Tag를 Variable로 Promote 그리고 return Actor를 CC_BaseCharacter로 Cast한 결과를 Promote 해두었다.\
 함수 내부에서 BaseCharacter인지와 Alive 여부를 이미 검증했기 때문에,\
 반환된 Actor는 정상이라면 BaseCharacter로 Cast된다. 따라서 이후에는 TargetBaseCharacter 변수로 사용하면 된다.
+
+
+### 54. Move To Target
+
+Moving To A Target 을 구현한다.
+
+강의 시작전에 구현할 것들 목차.
+* Nav Mesh Bounds Volume
+* AIController
+* Move To Location Or Actor
+* Acceptance Radius
+* Min and Max Attack Delay Time
+
+Nave Mesh Bounds Volume\
+AI가 이동 가능한 영역을 생성한다.\
+P키를 누르면 영역을 볼 수 있다.
+
+AIController\
+AI관련 이동에 필요하다. 예를 들어 `MoveToLocationOrActor()`\
+BP_EnemyController를 추가하고 Enemy Base BP의 class Defaults의 AI Controller Class에 셋팅했다.
+
+Gameplay Ability에서 필요한 BP_Enemy와 AIController를 캐싱하도록 했다.
+
+참고: 일반적으로 C++ 클래스 대신 Blueprint 클래스로 Cast 하는 것은 권장되지 않지만,\
+이번 경우에는 Enemy BP가 이미 메모리에 로드되어 있으므로 BP Cast를 사용해도 괜찮다고 했다.
+
+Start Search를 Custom Event로 만들었다.
+```
+StartSearch
+    ↓
+Wait Delay
+    ↓
+Find Closest Base Character
+    ↓
+Move To Target
+```
+
+Wait Delay의 사용\
+공격 간격을 만들기 위해 `Wait Delay` Ability Task를 사용했다\
+내부적으로 Timer를 사용하고 실제 동작은 Delegate에서 이어진다.
+
+`Delay` 노드는 Gameplay Ability에서 사용하는 것이 권장되지 않는다고 한다.\
+Gameplay Ability의 생명주기와 연동되지 않아 Cancel, End Ability 등에 문제가 생길 수 있음\
+반면에 `Wait Delay`는 Ability Task이므로 ASC가 생명주기를 관리하며 Ability와 함께 안전하게 종료됨
+
+
+Target 이동\
+Target을 찾은 뒤 AIController의 `Move To Location Or Actor`를 사용하여 이동시켰다.
+
+설정값
+
+Goal Actor : TargetBaseCharacter\
+Acceptance Radius : Enemy의 AcceptanceRadius
+
+Acceptance Radius를 Enemy마다 다르게 설정할 수 있으므로
+
+Melee는 가까이 접근\
+Ranged는 멀리서 정지
+
+Target이 없을 경우\
+Is Not Valid일 때 `StartSearch`를 호출하여 짧은 딜레이 이후 계속 탐색하도록 구현했다.\
+처음 Ability가 실행되는 시점에는 아직 Target을 찾지 못할 수도 있기 때문에 찾을 때까지 반복 탐색한다.
+
