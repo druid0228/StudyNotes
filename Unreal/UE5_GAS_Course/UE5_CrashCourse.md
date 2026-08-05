@@ -1787,3 +1787,99 @@ HandleRespawn()은 Authority와 관계없이 호출될 수 있으므로\
 ## Section 6: Enemy Combat
 ### 52. Section 6 Intro
 
+### 53. Searching for Targets
+
+가장 가까이 있는 Character를 찾는 Ability를 작성 할 것이다.
+
+그 이전에 카메라가 적에게 가려지는 것을 막기 위해\
+project setting -> collision에서 pawn과 character mesh의 camera collision을\
+block에서 ignore로 바꾸고 시작했다.
+
+GA_CC_SearchForTarget을 작성했다. 이 Ability는 ActiveOnGiven이고\
+Instance per Actor, Net policy는 server only 이다.
+
+SearchForTarget은 Actor Tag를 이용해 대상을 찾으므로 Player에게 Actor Tag를 부여했다.\ 
+이전에 하던 GAS의 Tag가 아니라 Actor가 갖고있는 Tag이다.
+
+project나 bp에서 직접 추가해도 되지만 관리와 재사용을 위해 C++에서 정의했다.\
+CC_BaseCharacter의 .h와 .cpp에 나눠서 작성한다.
+```cpp
+//.h 
+namespace CrashTags
+{
+	extern CRASHCOURSE_API const FName Player;
+}
+
+//.cpp
+namespace CrashTags
+{
+	const FName Player = FName("Player");
+}
+```
+그리고 PlayerCharacter의 생성자에서 Tag.Add(CrashTags::Player)를 해주었다.
+
+추가: CRASHCOURSE_API는 현재 모듈의 Export/Import 매크로이다.\
+Public 헤더에 선언한 변수나 클래스가 다른 번역 단위나 모듈에서도 접근 가능하도록 내보내는 역할을 한다.
+
+
+GA_CC_SearchForTarget에서 사용할 함수 `FindClosestActorWithTag`는\
+CC_BlueprintLibrary에 작성했다.
+
+그리고 함수의 반환형으로 UStruct를 작성했다.
+```cpp
+USTRUCT(BlueprintType)
+struct FClosestActorWithTagResult
+{
+	GENERATED_BODY()	// class와 마찬가지로 reflection을 위해 필요함에 주의
+	
+	UPROPERTY(BlueprintReadWrite)
+	TWeakObjectPtr<AActor> Actor;	// TWeakObjectPtr 사용
+	
+	UPROPERTY(BlueprintReadWrite)
+	float Distance{0.0f};
+};
+```
+함수의 로직은 `UGameplayStatics::GetAllActorsWithTag`로 Tag에 해당하는 모든 Actor들을 찾고\
+distance를 기록해 가장 가까운 Actor를 반환하는 것이다.\
+
+추가: GetAllActorsWithTag의 첫번째 인자 UObject* WorldContextObject는 그 객체가 속한 World를 얻을 수 있게 해준다.\
+Actor, ActorComponent, GameMode 등을 넘기면 내부적으로 GetWorld()해서 넘기는 것과 비슷하다.\
+유효한 World를 얻을 수 있는 UObject를 전달해야 한다.
+
+간단하지만 코드 첨부
+```cpp
+FClosestActorWithTagResult UCC_BlueprintLibrary::FindClosestActorWithTag(const UObject* WorldContextObject,
+	const FVector& Origin, const FName& Tag)
+{
+	TArray<AActor*> ActorsWithTag;
+	UGameplayStatics::GetAllActorsWithTag(WorldContextObject,Tag,ActorsWithTag);
+	
+	float ClosestDistance = TNumericLimits<float>::Max();
+	AActor* ClosestActor = nullptr;
+	for (AActor* Actor : ActorsWithTag)
+	{
+		if (!IsValid(Actor))continue;	// Valid 검사 필요
+		ACC_BaseCharacter* BaseCharacter = Cast<ACC_BaseCharacter>(Actor);
+		// Valid 이후 IsAlive 검사하여 살아있는 객체만 찾도록
+		if (!IsValid(BaseCharacter)||!BaseCharacter->IsAlive())continue;	
+		// FVector::Distance 이용
+		float Distance = FVector::Dist(BaseCharacter->GetActorLocation(),Origin);
+		if (Distance < ClosestDistance)
+		{
+			ClosestDistance = Distance;
+			ClosestActor = Actor;
+		}
+	}
+	FClosestActorWithTagResult Result;
+	Result.Actor=ClosestActor;
+	Result.Distance=ClosestDistance;
+	
+	return Result;
+}
+```
+
+이후 어빌리티를 Enemy들에게 할당하고 동작함을 확인했다.
+
+BP에서 Input의 Tag를 Variable로 Promote 그리고 return Actor를 CC_BaseCharacter로 Cast한 결과를 Promote 해두었다.\
+함수 내부에서 BaseCharacter인지와 Alive 여부를 이미 검증했기 때문에,\
+반환된 Actor는 정상이라면 BaseCharacter로 Cast된다. 따라서 이후에는 TargetBaseCharacter 변수로 사용하면 된다.
