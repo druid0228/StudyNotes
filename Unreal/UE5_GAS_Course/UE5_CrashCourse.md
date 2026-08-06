@@ -1946,3 +1946,75 @@ Target이 없을 경우\
 Is Not Valid일 때 `StartSearch`를 호출하여 짧은 딜레이 이후 계속 탐색하도록 구현했다.\
 처음 Ability가 실행되는 시점에는 아직 Target을 찾지 못할 수도 있기 때문에 찾을 때까지 반복 탐색한다.
 
+
+### 55. Move and Attack
+
+AI가 목표를 향해 이동한 뒤 공격하는 흐름을 구현했다.\
+공격 전에 플레이어를 바라보도록 부드럽게 회전시키는 기능도 추가
+
+기존의 이동 로직을 `MoveToTargetAndAttack` 이벤트로 분리했다.\
+Target이 이동 도중 죽었을 수도 있으므로 Alive 값을 확인한다.
+
+Target이 살아 있다면 MoveToTargetAndAttack을 호출하고,\
+죽었다면 StartSearch를 다시 호출하여 새로운 Target을 찾는다.
+
+이동이 끝난 뒤에는 On Move Finished에서 AttackTarget 이벤트를 호출한다.
+
+**RotateToTarget** Event 구현
+
+공격하기 전에 적이 플레이어를 바라보도록 `EnemyBase`BP에 `RotateToTarget` 이벤트를 추가했다.
+
+회전은 Timeline을 사용하여 0.2초동안 자연스럽게 수행된다.
+
+Timeline에는 RotateTrack이라는 Float Track을 추가했다.
+
+0.0초 → 0\
+0.2초 → 1\
+Timeline의 Alpha 값을 사용하여 현재 회전과 목표 회전(Find Look At Rotation)을 Slerp로 보간한다.
+
+```
+RotateToTarget(Target)
+    ↓
+Rotation Timeline(Update)
+    ↓
+SetFacingRotation(Target, Alpha)
+```
+
+**SetFacingRotation** Function 구현
+1. 현재 Actor Rotation 획득
+2. `Find Look At Rotation`으로 목표 방향 계산
+3. 두 Rotation을 Quaternion으로 변환
+4. `Slerp`로 부드럽게 보간
+5. `SetActorRotation`으로 회전
+
+함수에 필요한 Inputs으로 float -  Alpha: 보간값, Actor Object Reference - Rotate Target: 회전방향의 타겟 을 추가했다.
+
+
+회전이 끝나기 전에 공격하면 어색하기 때문에\
+Rotate To Target -> Wait Delay 를 넣었다\
+Wait Delay의 Time은 BPOwning Enemy -> Rotation Timeline -> `Get Timeline Length`\
+를 이용하여 Timeline 길이 만큼 wait하게 한다.
+
+공격 사이클은 아직 구현하지 않았기 때문에 Print String -> wait Delay -> StartSearch로\
+임시 구현해뒀다.
+
+결과적으로 AI는 
+```
+Search -> Move -> Rotate -> Attack -> Search
+``` 
+를 반복하게 된다.
+
+
+추가: Physics Asset 추가\
+Enemy Skeletal Mesh에 Physics Asset이 없어서 그림자(Shadow Artifact)가 발생했다.
+
+각 Enemy Mesh에 Physics Asset을 생성(Create Physics Asset)하고 Capsule이 Mesh 전체를 감싸도록 수정했다.
+
+
+추가: Ranged Enemy 애니메이션 수정\
+발이 미끄러지는(Foot Sliding) 현상을 줄이기 위해 애니메이션도 수정했다.
+
+Blend Space에서 Idle 대신 Walk를 기본으로 사용\
+Speed > 0일 때만 Blend Space 사용\
+이동하지 않을 때만 Idle Animation 재생\
+Attack Montage Slot은 Idle 상태에서만 적용하여 Foot Sliding을 줄였다.
