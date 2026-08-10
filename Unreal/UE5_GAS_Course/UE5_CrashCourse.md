@@ -2018,3 +2018,41 @@ Blend Space에서 Idle 대신 Walk를 기본으로 사용\
 Speed > 0일 때만 Blend Space 사용\
 이동하지 않을 때만 Idle Animation 재생\
 Attack Montage Slot은 Idle 상태에서만 적용하여 Foot Sliding을 줄였다.
+
+
+### 56. Stop Movement While Dead
+적이 죽은 상태에서도 플레이어를 향해 이동하던 문제를 수정했다.
+
+두가지 처리가 필요하다.
+1. 진행중인 AI의 이동 중단
+2. 죽은 상태에서 새로운 이동의 시작 방지
+
+HandleDeath override\
+EnemyCharacter에서 `AIController->StopMovement()`를 추가했다.
+
+`build.cs`의 의존성 추가가 필요했다.
+```cpp
+PrivateDependencyModuleNames.AddRange(new string[]
+{
+    "AIModule"
+});
+```
+
+죽은 상태에서의 이동 방지\
+`GA_CC_SearchForTarget`에서 MoveToTargetAndAttack에서\
+bAlive == true\
+→ 이동 시작
+
+bAlive == false\
+→ 이동하지 않고 StartSearch\
+→ 일정 시간 후 다시 검색/검사
+
+이전에 직접 잠시 해봤을때 false 처리를 안하면 로직이 끝나버리고 반복할 수 없게 되었다.
+
+추가: Acceptance Radius, primary ability Hitbox Radius 조정
+
+| 처리 | 현재 진행 중인 이동 | 이후 새로운 이동 |
+|---|---|---|
+| `StopMovement()`만 사용 | 중단 | 막지 못함 |
+| `bAlive` 검사만 사용 | 막지 못함 | 차단 |
+| 둘 다 사용 | 중단 | 차단 |
