@@ -2056,3 +2056,47 @@ bAlive == false\
 | `StopMovement()`만 사용 | 중단 | 막지 못함 |
 | `bAlive` 검사만 사용 | 막지 못함 | 차단 |
 | 둘 다 사용 | 중단 | 차단 |
+
+
+### 57. Enemy Attack Ability
+공격용 Gameplay Ability를 만들고 태그를 통해 활성화 하도록 변경했다.
+
+Gameplay Tag 추가\
+CCTags.Abilities.Enemy.Attack: 공격을 활성화 하기 위한 태그
+
+CCTags.Events.Enemy.EndAttack: 다음 공격을 위한 탐색을 다시 시작하도록 알리는 Gameplay Event 태그
+
+Melee와 Ranged의 Attack은 공통이 없으므로 따로 만들었다.\
+이번에 만든것은 Ranged
+
+* Asset Tag: CCTags.Abilities.Enemy.Attack
+* Instancing Policy: Instanced Per Actor
+* Retrigger Instanced Ability: 활성화
+* Net Execution Policy: Server Only
+
+Retrigger Instanced Ability를 활성화하면 Ability가 이미 실행 중일 때 다시 활성화될 경우, 기존 실행을 종료하고 처음부터 다시 실행한다.
+
+참고: Attack에 대한 Ability이다 투사체에 대한 것이 아님
+
+원거리 공격 Montage 생성
+
+GA_CC_Attack_Ranged에서는 `Play Montage and Wait` Ability Task로 Montage를 재생하고\
+On Completed, On Interrupted, On Cancelled 에서 End Ability\
+Exec핀에는 Send Gameplay Event to Actor로 `Events.Enemy.EndAttack` 을 Avatar Actor에 보내서\
+Montage 재생을 시작한 직후 이벤트를 보낸다.
+
+StartSearch를 공격 Ability 활성화 직후 직접 호출하지 않고 이벤트를 기다리는 이유는 공격 종류마다 완료 시점이 다를 수 있기 때문이다. 예를 들어 Melee 공격은 공격 Montage나 타격 처리가 끝난 뒤 다음 탐색을 시작하도록 만들 수 있다.
+
+추가: EndAttack 이벤트의 의미가 엄밀한 “공격 완료”라기보다는 다음 공격 탐색을 다시 시작해도 된다에 가깝다. 그러므로 Exec 핀에 연결하는 것이 알맞다\
+만약 On Completed 뒤에 한다면 Montage가 전부 재생될 때 까지 기다리고\
+그 이후에 탐색, 회전, 딜레이등의 과정을 거치게 된다
+
+GA_CC_SearchForTarget의 AttackTarget 부분에서
+Get Ability System Component from Actor Info -> Try Activate Abilities by Tag\
+Enemy.Attack 태그로 해당 Ability를 동작하게 했다.
+
+
+기존의 Sequence에서 Start Search 아래에 then2를 추가 Wait for End Attack Event 파트를 추가했다.\
+내용은 Wait Gameplay Event로 EndAttack tag로 기다리고 그 뒤에 Start Search를 하는 것이다.
+
+
