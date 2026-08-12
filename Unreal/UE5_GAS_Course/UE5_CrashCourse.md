@@ -2100,3 +2100,198 @@ Enemy.Attack 태그로 해당 Ability를 동작하게 했다.
 내용은 Wait Gameplay Event로 EndAttack tag로 기다리고 그 뒤에 Start Search를 하는 것이다.
 
 
+### 58. Converting Ability Blueprints to Code
+
+Optional인 강의 챕터였다. 기존에 존재하던 `GA_CC_SearchForTarget` Ability를 Blueprint의 전체 로직을 C++로 전환했다.
+
+BP를 보고 flow를 따라가면서 C++로 하나씩 바꾸는 과정으로 진행했다.
+
+`UCC_GameplayAbility`를 상속받는 `UCC_SearchForTarget`을 생성했다.
+
+생성자에서 
+* Instancing Policy: Instanced Per Actor
+* Net Execution Policy: Server Only
+
+Activate On Granted는 기존 Ability Blueprint에서 설정한다.
+
+
+
+**Blueprint 기능을 C++에 노출**
+적이 목표를 향해 회전하는 기능은 BP의 Timeline을 사용하므로\
+ACC_EnemyCharacter에 `BlueprintImplementableEvent`로 선언했다.
+```cpp
+UFUNCTION(BlueprintImplementableEvent)
+void RotateToTarget(AActor* RotateTarget);
+
+UFUNCTION(BlueprintImplementableEvent)
+float GetTimelineLength();
+```
+* RotateToTarget()은 Blueprint에서 Timeline을 재생한다.
+* GetTimelineLength()는 Blueprint의 Rotation Timeline 길이를 반환한다.
+
+추가: `BlueprintImplementableEvent` C++에서 함수의 형태만 선언하고, 실제 구현은 Blueprint에서 하도록 만든다.\
+`BlueprintNativeEvent` C++에서 기본 구현도 가능하고 선택적으로 BP에서 override도 가능하다.
+
+**참조캐싱**
+Ability가 적이나 Controller의 생명주기를 보장할 필요가 없으며,\
+해당 객체가 GC되는 것을 막을 필요도 없으므로 TWeakObjectPtr로 참조한다.
+
+```cpp
+TWeakObjectPtr<ACC_EnemyCharacter> OwningEnemy;
+TWeakObjectPtr<AAIController> OwningAIController;
+TWeakObjectPtr<ACC_BaseCharacter> TargetBaseCharacter;
+```
+
+`ActivateAbility()에서 캐싱한다.
+```cpp
+void UCC_SearchForTarget::ActivateAbility(const FGameplayAbilitySpecHandle Handle,
+	const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo,
+	const FGameplayEventData* TriggerEventData)
+{
+	OwningEnemy = Cast<ACC_EnemyCharacter>(
+		GetAvatarActorFromActorInfo());
+
+	check(OwningEnemy.IsValid());
+
+	OwningAIController =
+		Cast<AAIController>(OwningEnemy->GetController());
+
+	check(OwningAIController.IsValid());
+	...
+
+
+	StartSearch()
+
+	// Event대기
+	WaitGameplayEventTask = UCC_WaitGameplayEvent::WaitGameplayEventToActorProxy(GetAvatarActorFromActorInfo(),CCTags::Events::Enemy::EndAttack);
+	WaitGameplayEventTask->EventReceived.AddDynamic(this,&ThisClass::EndAttackEventReceived);
+	WaitGameplayEventTask->StartActivation();
+}
+```
+`check()`는 반드시 참이어야하는 개발 단계의 조건을 검사.\
+ensure, verify 등이 존재.
+
+오버라이드 해야하는 함수들에 관해서는 원본이 되는 클래스등에서 검색한다.
+
+분기나 루프를 제외한 간단한 플로우
+```
+ActivateAbility -> 참조캐싱 -> StartSearch -> 랜덤시간 대기 -> ClosetPlayerSearch -> valid check -> MoveToTargetAndAttack -> Rotate -> Attack Ability -> EndAttack Event -> StartSearch
+```
+
+기존에 Editor에서 존재하던 Tag들을 C++로 이전했다.\
+CCTags::Events::Enemy::EndAttack\
+C++ tag에 이전하고 Project\Config\defaultGameplayTags.ini에서\
+옮기고자 하는 태그를 삭제해주어야한다.
+
+
+**StartSearch**
+무작위 시간을 구하고 대기한다.
+```cpp
+const float SearchDelay = FMath::RandRange(OwningEnemy->MinAttackDelay,OwningEnemy->MaxAttackDelay);
+	SearchDelayTask = UAbilityTask_WaitDelay::WaitDelay(this,SearchDelay);
+	SearchDelayTask->OnFinish.AddDynamic(this,&ThisClass::Search);
+	SearchDelayTask->Activate();
+```
+OnFinish에 Search()를 연결한다
+
+Dynamic Multicast Delegate 이므로 `UFUNCTION`이 필요하다.\
+
+**Search**
+```cpp
+UFUNCTION()
+void Search()
+{
+	FClosestActorWithTagResult ClosestActorResult = UCC_BlueprintLibrary::FindClosestActorWithTag
+	...
+}
+```
+기존에 구현해뒀던 `UCC_BlueprintLibrary::FindClosestActorWithTag`를 사용하여 가까운 Actor를 찾는다\
+분기로 조건에 맞으면 `MoveToTargetAndAttack()`을 호출하고 그렇지 않다면 `StartSearch()` 후 return 한다.
+
+**MoveToTargetAndAttack**
+`UAITask_MoveTo`를 생성하여 Target에게 이동한다.\
+BP에서의 함수 이름을 검색하여 이곳에 있는 것을 찾아 사용했다.
+```cpp
+MoveToLocationOrActorTask = UAITask_MoveTo::AIMoveTo(
+    OwningAIController.Get(),
+    FVector::ZeroVector,
+    TargetBaseCharacter.Get(),
+    OwningEnemy->AcceptanceRadius);
+```
+
+`OnMoveTaskFinished`는 Dynamic Delegate가 아닌 일반 Multicast Delegate이므로 `AddUObject()`를 사용한다.
+
+추가: Dynamic Delegate: UE 리플렉션 시스템을 사용하며 Blueprint에 노출할 수 있음,\ 일반 Delegate: 리플렉션을 사용하지 않는 C++ 전용 Delegate
+
+`AddDynamic()`은 Dynamic Multicast Delegate에서 사용하며, Dynamic Single-cast Delegate는 `BindDynamic()`을 사용한다.
+
+Task 실행에는 Activate()가 아니라 ConditionalPerformMove()를 사용한다.\
+`MoveToLocationOrActorTask->ConditionalPerformMove()`
+
+`OnMoveTaskFinished`의 Parameter를 복사하여 AttackTarget의 인자로 사용하고 등록한다.
+
+**AttackTarget**
+```cpp
+void UCC_SearchForTarget::AttackTarget(TEnumAsByte<EPathFollowingResult::Type> Result, AAIController* AIController)
+{
+	if (Result!=EPathFollowingResult::Type::Success)
+	{
+		StartSearch();
+		return;
+	}
+	OwningEnemy->RotateToTarget(TargetBaseCharacter.Get());
+	
+	AttackDelayTask = UAbilityTask_WaitDelay::WaitDelay(this,OwningEnemy->GetTimelineLength());
+	AttackDelayTask->OnFinish.AddDynamic(this,&ThisClass::Attack);
+	AttackDelayTask->Activate();
+}
+```
+이동 결과가 실패하면 공격하지 않고 다시 탐색한다.
+
+`OwningEnemy`의 `RotateToTarget()`으로 적을 Target 방향으로 회전하고\
+`GetTimelineLength()`로 회전 시간을 얻은 뒤 `UAbilityTask_WaitDelay`로 해당 시간만큼 기다린다.
+
+**Attack**
+`CCTags.CCAbilities.Enemy.Attack`를 가진 Ability를 활성화한다.
+```cpp
+{
+	const FGameplayTag AttackTag = CCTags::CCAbilities::Enemy::Attack;
+
+	GetAbilitySystemComponentFromActorInfo()->TryActivateAbilitiesByTag(AttackTag.GetSingleTagContainer());
+}
+```
+
+
+**UAbilityAsync_WaitGameplayEvent**
+공격 흐름이 끝난 뒤에 다시 탐색을 시작하기 위해 `CCTags.Events.Enemy.EndAttack` 이벤트를 기다린다.
+
+
+UAbilityAsync_WaitGameplayEvent::Activate()는 protected이므로 직접 호출할 수 없다.\
+이를 위해 해당 클래스를 상속받는 UCC_WaitGameplayEvent를 만들고, 내부에서 Activate()를 호출하는 공개 함수 StartActivation()을 추가했다.\
+
+또한 Task를 생성하는 Static 함수 `WaitGameplayEventToActor`를 복사하여\
+`WaitGameplayEventToActorProxy`로 이름만 바꾸고 내용은 복사하되 변형하여 작성했다.
+
+이 함수에서는 기존 UAbilityAsync_WaitGameplayEvent 대신 직접 만든 UCC_WaitGameplayEvent 객체를 생성한다.
+
+생성한 Async Task가 이벤트를 기다리는 동안 GC되지 않도록 UPROPERTY()가 지정된 TObjectPtr 멤버로 보관한다.
+
+지역 변수로두면 안된다.
+```cpp
+UPROPERTY()
+TObjectPtr<UCC_WaitGameplayEvent> WaitGameplayEventTask;
+```
+
+
+
+**Blueprint 교체**
+기존 `GA_CC_SearchForTarget`의 Parent Class를 새로만든 `UCC_SearchForTarget`으로 변경하고\
+BP의 Activate Ability 실행핀을 분리하니 C++로 동작했다.
+
+강사님의 말씀으론 Blueprint와 C++중 어느 방식이 항상 더 좋은 것은 아니라고 한다.
+
+* Blueprint는 흐름을 시각적으로 확인하기 쉽고 빠르게 수정할 수 있다.
+* C++은 로직을 함수 단위로 정리하고 프로그래머 중심으로 관리하기 좋다.
+* 해당 로직에서는 C++ 전환으로 얻는 성능 차이가 크지 않으므로 팀 구성과 작업 방식에 따라 선택한다.
+
+간단하게 BP로 작성하고 노드가 복잡하거나 성능적으로 얻는 차이가 크다면 C++로 전환하는 방식이 괜찮아 보인다.
