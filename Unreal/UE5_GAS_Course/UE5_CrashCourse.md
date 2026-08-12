@@ -2171,7 +2171,7 @@ void UCC_SearchForTarget::ActivateAbility(const FGameplayAbilitySpecHandle Handl
 `check()`는 반드시 참이어야하는 개발 단계의 조건을 검사.\
 ensure, verify 등이 존재.
 
-오버라이드 해야하는 함수들에 관해서는 원본이 되는 클래스등에서 검색한다.
+오버라이드해야하는 함수들에 관해서는 원본이 되는 클래스등에서 검색한다.
 
 분기나 루프를 제외한 간단한 플로우
 ```
