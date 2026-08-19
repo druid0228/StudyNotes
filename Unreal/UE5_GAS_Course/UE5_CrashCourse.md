@@ -2295,3 +2295,155 @@ BP의 Activate Ability 실행핀을 분리하니 C++로 동작했다.
 * 해당 로직에서는 C++ 전환으로 얻는 성능 차이가 크지 않으므로 팀 구성과 작업 방식에 따라 선택한다.
 
 간단하게 BP로 작성하고 노드가 복잡하거나 성능적으로 얻는 차이가 크다면 C++로 전환하는 방식이 괜찮아 보인다.
+
+
+### 59. Projectile Class
+
+원거리 적이 발사할투사체를 구현했다.
+
+* `ProjectileMovementComponent`를 통한 이동
+* 플레이어와 Overlap 시 Gameplay Effect 적용
+* 충돌 및 발사 Particle Effect 재생
+* Effect 적용 후 투사체 제거
+* 서버에서 생성하고 클라이언트에 복제
+
+헤더
+```cpp
+	UPROPERTY(VisibleAnywhere,Category="Crash|Projectile")
+	TObjectPtr<UProjectileMovementComponent> ProjectileMovement;
+
+	UPROPERTY(EditDefaultsOnly,Category="Crash|Damage")
+	TSubclassOf<UGameplayEffect> DamageEffect;
+```
+
+이동 속도와 중력은 Projectile Blueprint에서 설정했다.
+Initial Speed: 3000\
+Projectile Gravity Scale: 0
+
+Static Mesh에 기존 Simple Collision이 없어서 Box Collision을 추가했다.
+
+Overlap 처리
+```cpp
+	virtual void NotifyActorBeginOverlap(AActor* OtherActor) override;
+```
+함수를 Override하여 내부에 구현했다.
+
+OtherActor가 살아있는 Player인지 체크하고\
+Player의 AbilitySystemComponent를 이용하여\
+`ApplyGameplayEffectSpecToSelf` 함수로 damage effect를 적용했다.\
+서버에서 체크하므로 HasAuthority를 체크
+
+Damage는 추후에 따로 추가 한다고 했다.
+
+```cpp
+void ACC_Projectile::NotifyActorBeginOverlap(AActor* OtherActor)
+{
+    ACC_PlayerCharacter* PlayerCharacter =
+        Cast<ACC_PlayerCharacter>(OtherActor);
+
+    if (!IsValid(PlayerCharacter))return;
+    if (!PlayerCharacter->IsAlive())return;
+
+    UAbilitySystemComponent* AbilitySystemComponent =
+        PlayerCharacter->GetAbilitySystemComponent();
+
+    if (!IsValid(AbilitySystemComponent) || !HasAuthority())return;
+
+    FGameplayEffectContextHandle ContextHandle =
+        AbilitySystemComponent->MakeEffectContext();
+
+    FGameplayEffectSpecHandle SpecHandle =
+        AbilitySystemComponent->MakeOutgoingSpec(
+            DamageEffect,
+            1.0f,
+            ContextHandle
+        );
+
+    // TODO: Damage 변수를 실제 데미지 값으로 전달
+
+    AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(
+        *SpecHandle.Data.Get()
+    );
+
+    SpawnImpactEffects();
+    Destroy();
+}
+```
+
+추가: `ApplyGameplayEffectToSelf` vs `ApplyGameplayEffectSpecToSelf`\
+ApplyGameplayEffectToSelf도 내부적으로는 Spec을 만든다\
+별도 수정없이 즉시 적용할때는 전자를 사용하지만 Spec을 직접 수정해서 사용할때 후자를 사용한다
+
+FGameplayEffectContextHandle: 효과가 누가, 무엇으로, 어디에서 발생시켰는지 저장
+* Instigator
+* Effect Causer
+* Source Object
+* Hit Result
+* World Origin
+FGameplayEffectSpecHandle	: 실제로 적용할 Effect의 실행 시점 데이터 저장
+* 사용할 GameplayEffect
+* Effect Level
+* Context
+* 캡처된 Attribute와 Tag
+* SetByCaller 값
+* Duration 및 Stack 정보
+
+
+Damage GameplayEffect를 생성했다.\
+- Duration Policy: Instant
+- Modifier Attribute: Health
+- Modifier Operation: Add
+- Modifier Magnitude: -5
+
+ACC_Projectile을 상속받는 BP_CC_Projectile을 생성했다.
+
+구성 요소
+- Projectile Movement Component
+- Static Mesh
+	- Projectile Particle System
+	- Particle Spawn Scene Component
+	- Impact Effect Spawn Scene Component
+
+BP에서 Lifespan을 10초로 설정하여 자동으로 사라지게했다.
+Collision 설정은 Overlap All
+
+Projectile 생성
+
+원거리 공격 Gameplay Ability에서 Montage 재생 후 투사체를 생성했다.
+
+Spawn Transform
+
+총구 위치는 Skeletal Mesh의 "muzzle_front" Socket을 사용했다.
+
+GAS에서 다음 함수로 Mesh를 바로 가져올 수 있다.
+`GetSkeletalMeshComponentFromActorInfo` -> `Get Socket Transform`
+
+Socket Transform의 Location은 그대로 사용하고, Rotation은 투사체가 지면과 평행하고\
+투사체의 앞방향인 X축 기준으로 평행하게 발사하도록 보정했다.
+```
+Socket Rotation
+→ Get Forward Vector
+→ Z = 0인 새로운 Vector 생성
+→ Make Rot From X	: 입력된 Vector 방향을 새로운 Rotation의 X축, 즉 Forward 방향으로 사용하는 회전값을 만든다.
+→ Spawn Rotation
+```
+
+
+Particle Effect
+
+발사 시 Muzzle Flash를 재생했다.
+
+- Projectile의 BeginPlay에서 실행
+- Particle Spawn Scene Component의 World Location과 Rotation 사용
+- Particle 방향이 반대여서 Scene Component를 180도 회전
+
+보통 에셋 제작팀에 요청하지만 이렇게 필요한 경우 Scene을 추가하여\
+특정 위치를 사용하거나 회전하거나 해서 쓸 수 있다.
+
+충돌 Impact는 `BlueprintImplementableEvent`로 선언했다
+
+cpp에서 Effect 적용후 호출한다.
+```cpp
+SpawnImpactEffects();
+Destroy();
+```
