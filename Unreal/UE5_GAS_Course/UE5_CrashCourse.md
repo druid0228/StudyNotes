@@ -2447,3 +2447,54 @@ cpp에서 Effect 적용후 호출한다.
 SpawnImpactEffects();
 Destroy();
 ```
+
+### 60. Set By Caller
+
+이전에 구현한 Ranged_Damage Effect의 damage를 Set By Caller를 이용해 구현했다.
+
+새로운 태그를 코드로 추가했다. `CCTags.SetByCaller.Projectile`
+
+BlueprintLibrary의 함수 `AssignTagSetByCallerMagnitude`를 사용하여
+```cpp
+UAbilitySystemBlueprintLibrary::AssignTagSetByCallerMagnitude(SpecHandle,CCTags::SetByCaller::Projectile,Damage);
+```
+SetByCaller 값을 셋팅한다.\
+SetByCaller 값은 Gameplay Effect Spec을 적용하기 전에 설정해야 한다.
+
+Damage에서 Magnitude type을 SetByCaller로 변경하고 Data Tag로 연결하면\
+C++ 변수의 Damage 값으로 설정되는 것을 확인했다.
+
+BP에서 Scalar나 Curve Table 쓰지 않고 코드에서 effect의 magnitude를 셋팅하는 학습했다.
+
+이전에 강의에서 미리 들었듯이 복잡한 대미지의 계산\
+예: 공격력 * 스킬배율 * 무기공격력 * 헤드샷 배율 * .....\
+형태의 것들을 code에서 처리 가능하다.\
+
+추가: C++ 에서도 Curve Table을 사용 가능하다.
+```cpp
+\\ 1
+UPROPERTY(EditDefaultsOnly, Category="Crash|Damage")
+FScalableFloat Damage;
+
+const float DamageAmount =
+    Damage.GetValueAtLevel(GetAbilityLevel());
+
+// 2
+UPROPERTY(EditDefaultsOnly, Category="Crash|Damage")
+TObjectPtr<UCurveTable> DamageCurveTable;
+
+FString Context;
+const FRichCurve* DamageCurve =
+    DamageCurveTable->FindCurve(
+        FName("ProjectileDamage"),
+        Context
+    );
+
+if (DamageCurve)
+{
+    const float DamageAmount =
+        DamageCurve->Eval(GetAbilityLevel());
+}
+```
+1. `FScalableFloat`은 고정값 또는 Curve Table의 특정 Row를 사용하도록 설정할 수 있다.
+2. Curve Table에서 직접 Row를 찾고, Ability Level에 해당하는 값을 구하는 방식도 사용할 수 있다.
