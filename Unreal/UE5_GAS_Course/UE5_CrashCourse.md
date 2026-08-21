@@ -2498,3 +2498,29 @@ if (DamageCurve)
 ```
 1. `FScalableFloat`은 고정값 또는 Curve Table의 특정 Row를 사용하도록 설정할 수 있다.
 2. Curve Table에서 직접 Row를 찾고, Ability Level에 해당하는 값을 구하는 방식도 사용할 수 있다.
+
+### 61. Melee Attack Montage
+
+근거리 적의 공격 montage를 추가한다.\
+이번 강의는 전부 Editor Blueprint로 진행되었다.
+
+Melee_Attack01과 Melee_Attack02를 붙여 사용하려했는데\
+애니메이션을 합쳤을 때 프레임 레이트가 호환되지 않는다는 경고가 발생했다.\
+이번시간에는 6가지 모션을 전부 Montage로 만들어서\
+그 중에서 랜덤하게 선택하는 방향으로 구현했다.
+
+`GA_CC_Attack_Melee` Gameplay Ability를 만들고\
+policy를 설정했다. (Ranged와 같음)
+
+이전에 했던 것들을 추적해서 Tag를 뭘 써야할지 찾았다.
+
+PlayMontageAndWait을 추가하고 Complete 되었을 때 End Ability
+
+그리고 Event On End Ability에서 Send Gameplay Event to Actor를\
+tag : CCTags.Events.Enemy.EndAttack을 보냈다.
+
+기존의 Ranged와 같았지만 차이는 Attack Montage를 Array로 만들었다.
+
+details. Variable Type 오른쪽의 화살표를 눌러 Array로 전환한다.\
+Default Value로 기존에 만들었던 AM_Attack_1 ... 6 를 전부 집어 넣는다\
+이후 Array의 Util인 `Random Array Item` 를 사용하여 랜덤하게 Montage를 재생하도록 했다.
