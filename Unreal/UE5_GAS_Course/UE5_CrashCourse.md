@@ -2524,3 +2524,108 @@ tag : CCTags.Events.Enemy.EndAttack을 보냈다.
 details. Variable Type 오른쪽의 화살표를 눌러 Array로 전환한다.\
 Default Value로 기존에 만들었던 AM_Attack_1 ... 6 를 전부 집어 넣는다\
 이후 Array의 Util인 `Random Array Item` 를 사용하여 랜덤하게 Montage를 재생하도록 했다.
+
+### 62. Melee Attack Notify State
+
+이번 강의 목표:\
+근거리 적의 무기가 실제 타격되는 부분에 맞게 구현한다.\
+단순히 primary처럼 overlap으로 구현 가능하지만\
+이번 강의에서는 조금 더 복잡한 방법으로 구현한다.\
+구현 내용은 실제 무기가 휘둘러지는 프레임에 sphere trace를 사용 할 것이다.
+
+
+`AnimNotifyState`를 parent로 `AN_MeleeAttack`을 생성했다.\
+이번 강의에서는 Received Notify Tick을 override 해서 사용할 것이다.
+
+추가:\
+AnimNotify vs AnimNotifyState\
+AnimNotifyState는 한 순간만이 아닌 begin, tick, end 를 지원하여\
+검에 실제로 공격력이 있는 구간을 지정하여 사용 가능하다.\
+근접 공격 판정, 무적 구간, 이동제한 등에 사용
+
+AM_Attack_Melee_1~6 Montage에서 AN_MeleeAttack을 추가했다.\
+Notify State 양 끝의 다이아몬드를 Shift를 누른 채 드래그하면 해당 시점의 애니메이션 자세를 뷰포트에서 확인하면서 구간을 조정할 수 있다.\
+모션중에 공격이 실제로 이뤄지는 초반의 일부분에 전부 셋팅한다.
+
+sequence를 추가 Then0 에서 Check for validity로 MeshComp와 Owner를 check\
+
+함수를 추가했다 `BP Perform Sphere Trace` (나중에 C++로 옮겨 구현할 것이므로 이름 안겹치게 맨 앞에 BP를 추가함)\
+`SkeletalMeshComponent` MeshComp를 inputs에 추가\
+`HitResult` Hits 를 outputs에 추가\
+MeshComp의 `Get Socket Transform`으로 무기의 날 부분의 위치를 가져온다\
+인자의 `In Socket Name`을 to variable. BP Socket Name으로
+
+skeletal edit에서 Melee의 weapon bone의 FX_Trail_01_R을 살짝 도끼 위로 옮겨 사용한다. 이것을 BP Socket Name의 default값으로 설정
+
+Get Socket Transform의 return Value Location을 Start로 to local variable\
+End 부분은 무기의 살짝 뒤로 할 것이다.\
+return Value Rotation의 `Get Forward Vector` -> Multiply = Extended Socket Direction.  (Multiply 인자는 to Variable. float BP Socket Extension Offset)\
+Extended Socket Direction를 to Local Variable\
+Start - Extended Socket Direction = End\
+End는 Start에서 Socket Forward Vector의 반대 방향으로 Offset만큼 이동한 위치가 된다.
+
+Cache Start and End Comment 구역으로 나누고 Sequence를 추가한다.
+
+`Multi Sphere Trace By Channel` 함수를 추가하고 아까 구한 Start, End를 연결한다.\
+World Context Object에 MeshComp. Radius에 Variable BP Sphere Trace Radius연결\
+Actors to Ignore에 MeshComp->Get Owner->MakeArray의 결과인 array를 연결한다.\
+OutHits를 Return Node에 연결했다.\
+
+Draw Debug Type의 For Duration을 선택하여\
+Sphere Trace는 기본적으로 빨간색으로 표시되고, 충돌이 감지된 Trace는 초록색으로 표시되는 것을 확인했다.
+
+공격 후에 Notify부분에서 GA_CC_Attack_Melee에 Events를 보내야 하므로\
+CCTags.Events.Enemy.MeleeTraceHit을 코드에 추가했다.\
+```
+GA_CC_Attack_Melee에서 Montage 재생
+→ Montage의 공격 구간에서 AN_MeleeAttack 실행
+→ Trace 적중 시 적의 Owner에게 Gameplay Event 전송
+→ GA_CC_Attack_Melee가 Event를 수신
+```
+
+GA_CC_Attack_Melee에서 기존의 Play 부분을 Comment로 묶고 sequence 추가\
+Wait Gameplay Event에서 CCTags.Events.Enemy.MeleeTraceHit를 기다린다.\
+이번 강의에서는 한번의 충돌 event만 처리할 것이기 때문에 `Only Trigger Once`를 체크했다.\
+만약에 두명이상의 플레이어 처리를 하고싶다면 이 옵션을 끄고 hit actors를 캐싱하고 add unique등을 사용하는 방법이 추가되어야 한다.
+
+AN_MeleeAttack으로 되돌아와서 `BP Send Event to Actors` function을 추가했다.\
+이것은 BP Perform Sphere Trace 뒤에 동작할 것으로 Event를 보내는 함수이다.
+
+input에 array HitResult Hits, SkeletalMeshComponent MeshComp 를 추가했다.
+
+array HitResult Hits의 For Each Loop를 사용한다.\
+Array Element의 Break Hit Result를 사용,\
+Hit Actor를 CC_PlayerCharacter로 Cast하고 Local Variable PlayerCharacter로 저장\
+그리고 Player Character의 Is Alive 체크뒤 Send Gameplay Event to Actor로 Mesh Comp의 GetOwner에게 보내도록 했다.
+
+어떤 캐릭터에게 대미지를 줬는지 기록하기 위해 Payload를 추가할 것이다.\
+Payload input에서 끌어와서 `Make Gameplay Event Data`\
+Target에 Player Character를 추가한다.\
+이후 BP Perform Sphere Trace 뒤에 BP Send Event to Actors를 추가
+
+위의 HitResult에서 Impact Point도 사용할 수 있다. 예를들어 파티클 출력등에\
+이번 강의에서는 해당 Vector를 갖고 충돌한 부분의 Debug Sphere를 출력하게 한다.
+
+payload는 HitResult는 없지만 Context Handle이 있다 이것으로 전달 가능하다.
+
+기존의 과정을 sequence로 만들어서 아래에두고 위에 새로운 것을 추가한다.\
+GetOwner -> Get Ability System Component -> Make Effect Context 결과를 to Local로 cache해둔다. 실패하면 return node
+
+sequence 1 부분에 `AddHitResult`를 추가한다.\
+인자는 Effect Context, Hit Result\
+이후에 Make Gameplay Event Data쪽에 Effect Context를 연결해주면 전달된다.
+
+Draw Debug Type의 For Duration을 끄고 Context Handle의 `GetHitResult`를 이용해 직접 Draw Debug Sphere를 하여 잘 동작함 까지 확인했다.
+
+어렵지 않지만 과정이 왔다갔다하고 길어서 한번 복습이 필요할 것 같다.
+
+
+
+
+
+
+
+
+
+
+
