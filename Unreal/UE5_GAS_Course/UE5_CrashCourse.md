@@ -2619,13 +2619,77 @@ Draw Debug Type의 For Duration을 끄고 Context Handle의 `GetHitResult`를 �
 
 어렵지 않지만 과정이 왔다갔다하고 길어서 한번 복습이 필요할 것 같다.
 
+### 63. Converting Melee Attack Notify State to C++
+
+이전에 Blueprint로 구현한 `AN_MeleeAttack`의 로직을 C++로 전환했다.
+
+`UAnimNotifyState`를 상속받는 `UCC_Melee_Attack` 클래스를 생성하고\
+기존의 AN_MeleeAttack의 Parent로 지정했다.
+
+Notify State Tick은 짧은 시간 동안 매 프레임 실행되므로 Blueprint보다 C++로 구현하면 Blueprint 호출 오버헤드를 줄일 수 있다.
 
 
+#### `NotifyTick` 오버라이드
+
+UAnimNotifyState의 소스를 직접 확인하여 deprecated되지 않은 NotifyTick()을 오버라이드했다.
+
+virtual void NotifyTick(
+    USkeletalMeshComponent* MeshComp,
+    UAnimSequenceBase* Animation,
+    float FrameDeltaTime,
+    const FAnimNotifyEventReference& EventReference
+) override;
 
 
+강의에서는 Blueprint의 Multi Sphere Trace By Channel 노드에 대응하는 UKismetSystemLibrary의 엔진 코드를 직접 확인했다.
+
+Blueprint용 함수를 그대로 호출하는 대신, 내부에서 사용하는 다음 함수를 이용해 Trace를 구현했다.
+
+`UWorld::SweepMultiByChannel()`
+
+또한 FCollisionResponseParams를 사용하여 모든 채널을 무시하고 Pawn만 Block하도록 제한했다.
+
+ResponseParams.CollisionResponse.SetAllChannels(ECR_Ignore);\
+ResponseParams.CollisionResponse.SetResponse(ECC_Pawn, ECR_Block);
+
+#### Gameplay Event 전달
+
+Trace 결과를 순회하면서 살아 있는 ACC_PlayerCharacter만 처리한다.
+
+각 Hit Result는 GameplayEffectContext에 담는다.
+
+ContextHandle.AddHitResult(Hit);
+
+Payload에는 다음 정보를 설정한다.
+
+Instigator: 공격한 Melee Actor
+Target: 피격된 Player
+ContextHandle: 충돌 정보가 포함된 Effect Context
+
+이벤트는 공격자의 Melee Attack Ability가 수신하므로 공격자인 MeshComp->GetOwner()에게 보낸다.
+
+#### 추가: 강의와 내 구현 차이
+
+나는 `NotifyTick()` 내부에서 `UKismetSystemLibrary::SphereTraceMulti()`를 직접 사용했다.
+
+강의에서는 Blueprint 노드의 원본 구현을 확인한 뒤 로직을 다음 두 함수로 분리하고,
+내부에서 사용하는 `UWorld::SweepMultiByChannel()`로 Trace를 구현했다.
+
+- `PerformSphereTrace()`
+- `SendEventsToActors()`
+
+강의 방식은 `FCollisionQueryParams`와 `FCollisionResponseParams`를 사용하여
+무시할 Actor와 충돌할 채널을 세부적으로 지정할 수 있었다.
 
 
+#### 구현 중 확인한 내용
+```
+`UKismetSystemLibrary::SphereTraceMulti()`의 Trace Channel 인자는
+`ECollisionChannel`이 아니라 `ETraceTypeQuery`를 받는다.
 
+따라서 기본 Visibility 채널인 `ECC_Visibility`를 그대로 전달할 수 없고
+다음과 같이 변환해야 했다.
 
-
-
+```cpp
+UEngineTypes::ConvertToTraceType(ECC_Visibility)
+```
