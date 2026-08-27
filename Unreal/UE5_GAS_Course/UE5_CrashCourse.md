@@ -2693,3 +2693,69 @@ ContextHandle: 충돌 정보가 포함된 Effect Context
 ```cpp
 UEngineTypes::ConvertToTraceType(ECC_Visibility)
 ```
+
+### 64. Damage Event Static Function
+
+Ability는 클라이언트로 복제되기 때문에 Death Ability와 Hit React 이벤트 중 무엇이 먼저 도착할지 확실하지 않다.\
+대미지가 치명적인지 먼저 판단하고, Death 또는 Hit React 중 하나의 이벤트만 보내자.\
+이를 위해 플레이어의 대미지와 반응을 함께 처리하는 정적 함수를 만든다.
+
+Player에서 GA_CC_ListenForHealthChange를 삭제했다.
+
+BlueprintFunctionLibarary에서 `SendDamageEventToPlayer` 를 만들었다.\
+인자로 Target, DamageEffect, Payload, DataTag, Damage
+```cpp
+void UCC_BlueprintLibrary::SendDamagedEventToPlayer(
+	AActor* Target, 
+	const TSubclassOf<UGameplayEffect>& DamageEffect,
+	const FGameplayEventData& Payload, 
+	const FGameplayTag& DataTag, 
+	float Damage)
+{
+	ACC_BaseCharacter* PlayerCharacter = Cast<ACC_BaseCharacter>(Target);
+	
+	UCC_AttributeSet* AttributeSet = 
+		Cast<UCC_AttributeSet>(PlayerCharacter->GetAttributeSet());
+	
+	const bool bLethal = AttributeSet->GetHealth() - Damage <= 0.0f;
+	const FGameplayTag EventTag = bLethal?
+		CCTags::Events::Player::Death :
+		CCTags::Events::Player::HitReact;
+	
+	UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(PlayerCharacter,EventTag,Payload);
+	
+	UAbilitySystemComponent* TargetASC = PlayerCharacter->GetAbilitySystemComponent();
+
+	FGameplayEffectContextHandle ContextHandle = TargetASC->MakeEffectContext();
+	FGameplayEffectSpecHandle SpecHandle = TargetASC->MakeOutgoingSpec(DamageEffect,1.0f,ContextHandle);
+	
+	UAbilitySystemBlueprintLibrary::AssignTagSetByCallerMagnitude(SpecHandle,DataTag,-Damage);
+	
+	TargetASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+}
+```
+
+|인자|역할|
+|-----|-----|
+|Target|대미지를 받을 캐릭터|
+|DamageEffect|	적용할 대미지 Gameplay Effect|
+|Payload|	Gameplay Event에 함께 전달할 정보|
+|DataTag|	Set By Caller 값을 식별할 태그|
+|Damage	|양수로 전달되는 대미지 양|
+
+`SendGameplayEventToActor`로 플레이어가 뭘 해야할지 Event를 보낸다.\
+HitReact, Death\
+`ApplyGameplayEffectSpecToSelf`로 DamageEffect(GameplayEffect)를 적용한다.\
+대미지는 함수 인자의 Damage를 `AssignTagSetByCallerMagnitude`로 등록해서 적용한다.
+
+주의 : DataTag는 Set By Caller 값을 식별할 태그임\
+ex) CCTags::SetByCaller::Projectile
+
+함수 역할
+1. 대미지 치명적인지 판단하여 알맞은 이벤트 전송
+2. 대미지 Gameplay Effect 생성 및 적용
+
+
+이후 기존의 Projectile에서 payload만 추가하여 SendDamageEventToPlayer 호출하게 바꿔주었다.
+
+주의: Damage는 양수를 넘기기로 결정함
