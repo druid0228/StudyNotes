@@ -2759,3 +2759,42 @@ ex) CCTags::SetByCaller::Projectile
 이후 기존의 Projectile에서 payload만 추가하여 SendDamageEventToPlayer 호출하게 바꿔주었다.
 
 주의: Damage는 양수를 넘기기로 결정함
+
+
+### 65. Melee Damage Effect
+
+이전 강의에 이어서 MeleeTraceHit 뒤에 실제로 Send Damaged Event to Player에 보낼\
+`GE_Enemy_Melee_Damage` Gameplay Effect를 작성한다.
+
+Health attribute에 동작하고 magnitude는 Set by Caller로 지정한다.\
+이것을 위해서 에디터에 `CCTags.SetByCaller.Melee`를 추가했다.\
+이후 이 Damage Effect를 Player에게 보냈다.
+
+```
+MeleeTraceHit 이벤트 수신
+    → Payload.Target를 공격 대상에 전달
+    → GE_Enemy_Melee_Damage 적용
+    → SetByCaller.Melee 태그로 Damage 전달
+    → HitReact 또는 Death 이벤트 전송
+```
+
+강의에서 추가로 Edge case에 대한 처리를 진행했다.
+
+적이 죽은 상태에서도 공격 Ability가 실행될 수 있는 문제를 처리했다.
+
+`GA_CC_Attack_Melee` 시작시에 Status.Dead를 체크하고 살아있다면 진행.\
+이미 죽은 상태라면 `CCTags.Events.Enemy.EndAttack` Gameplay Event를 자신에게 전송한다.
+
+이는 공격 Ability가 실행되지 못했을 때 적의 행동 흐름이 멈추는 것을 방지하기 위해서다.
+
+메인 루프인 GA_CC_SearchForTarget은 다음과 같은 흐름으로 동작하기 때문이다.
+```
+Start Search
+    → 공격 실행
+    → EndAttack 이벤트 대기
+    → Start Search
+```
+따라서 공격을 시작하지 못한 경우에도 EndAttack 이벤트를 보내야 다시 타깃 탐색으로 돌아갈 수 있다.
+
+이후 `GA_CC_Death_Ability`쪽의 Respawn 이벤트에서 Remove Dead Tag 뒤에 Event EndAttack을 보내게 하여\
+이를 통해 부활한 적이 멈춰 있지 않고 다시 타깃 탐색을 시작하도록 했다.
