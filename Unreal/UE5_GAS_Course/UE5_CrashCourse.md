@@ -2827,3 +2827,70 @@ Right
 이를 통해 한 방향의 피격 애니메이션이 끝난 뒤 다음 방향 Section이 연속 재생되지 않고,선택된 Section 하나만 재생된다.
 
 추가: 추가한 animation들의 Section을 선택하고 시작을 맞출때 shift를 누르면 된다.
+
+### 68. Gameplay Cues
+
+플레이어가 공격받았을 때 Hit React 몽타주를 재생하도록 구현한다.
+
+이번 강의에서는 멀티플레이 환경에서 몽타주, 파티클, 사운드 등의 연출을 실행할 수 있는 Gameplay Cue를 사용했다.
+
+`GA_CC_Player_ImpactCues` 를 생성했다.\
+플레이어에게 발생하는 이벤트를 수신하고 그에 맞는 Gameplay Cue를 실행한다.\
+HitReact, Death
+
+* Asset Tag: CCTags.Abilities.ActivateOnGiven
+* Net Execution Policy: Local Predicted
+* Instancing Policy: Instanced Per Actor
+
+
+Gameplay Cue 검색 경로 설정
+
+Gameplay Cue를 태그로 실행할 때 엔진이 프로젝트 전체를 검색하지 않도록 DefaultGame.ini에 Gameplay Cue 경로를 지정했다.\
+log를 보면 나오는 warning의 [/Script/GameplayAbilities.AbilitySystemGlobals] 과 GameplayCueNotifyPaths를 참조한뒤 Cues들 있는 경로를 설정하면 된다.
+
+```ini
+[/Script/GameplayAbilities.AbilitySystemGlobals]
++GameplayCueNotifyPaths=/Game/CrashCourse/AbilitySystem/GameplayCues
+```
+
+주의: 경로를 지정하지 않으면 전체 프로젝트에서 Gameplay Cue를 검색하므로 느려질수 있다.
+
+
+Gameplay Cue 종류
+
+Gameplay Cue Notify에는 여러 종류가 있으며, 강의에서는 GameplayCueNotify_Actor를 사용했다.
+
+* GameplayCueNotify_Actor
+	* 실제 Actor 인스턴스가 생성됨
+	* 상태를 저장하거나 Tick을 사용할 수 있음
+* GameplayCueNotify_Static
+	* 인스턴스를 생성하지 않음
+	* 일회성 사운드나 파티클 같은 순간적인 효과에 적합
+
+GC_HitReact를 생성하고 다음 Gameplay Tag를 연결했다. GameplayCue.HitReact
+
+OnExecute를 오버라이드하여 Cue가 실행될 때 Hit React 연출을 처리한다.
+
+Hit React Gameplay Cue 실행
+
+GA_CC_Player_Impact_Cues가 Hit React 이벤트를 받으면 다음 노드로 Cue를 실행한다.
+```
+Execute Gameplay Cue With Params On Owner
+    GameplayCue Tag: GameplayCue.HitReact
+```
+
+Gameplay Cue는 기본적으로 네트워크에 복제되며 내부적으로 Multicast RPC를 사용하기 때문에,\
+서버 캐릭터에게 실행된 Hit React를 다른 클라이언트에서도 볼 수 있다.
+
+그러므로 멀티플레이어에서 동기화가 필요한 연출에 대해서만 사용해야한다.
+
+이후 GC_HitReact의 내용을 구현해서 방향별 hitReact를 구현했다.
+
+흐름
+```
+적의 공격으로 대미지 발생
+    → SendDamagedEventToPlayer
+    → Events.Player.HitReact 전송
+    → GA_CC_Player_Impact_Cues가 이벤트 수신
+    → Payload의 Instigator를 GameplayCueParameters에 전달
+```
