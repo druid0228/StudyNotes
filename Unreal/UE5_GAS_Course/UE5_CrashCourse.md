@@ -10,7 +10,7 @@
 ## Section 3: Gameplay Events
 ...
 
-### 19. Scetion 3 Intro
+### 19. Section 3 Intro
 
 ### 20. Gameplay Events
 
@@ -2798,3 +2798,32 @@ Start Search
 
 이후 `GA_CC_Death_Ability`쪽의 Respawn 이벤트에서 Remove Dead Tag 뒤에 Event EndAttack을 보내게 하여\
 이를 통해 부활한 적이 멈춰 있지 않고 다시 타깃 탐색을 시작하도록 했다.
+
+## Section 7: Player Damage and Impacts
+
+### 66. Section 7 Intro
+
+### 67. Player Hit React Montage
+
+플레이어의 Hit React용 Montage를 제작했다.
+
+`AM_Player_HitReact`로 작성했다.
+
+기존 Hit React Gameplay Ability에서는 Blueprint Library의 다음 함수를 이용해 피격 방향과 Section 이름을 결정한다.
+
+따라서 Montage Section 이름을 함수에서 반환하는 이름과 정확히 맞춰야 한다.
+```
+Forward
+Back
+Left
+Right
+```
+
+플레이어가 피격 중에도 이동할 수 있도록 Montage Slot은 다음과 같이 설정했다.
+`DefaultGroup.UpperBody`
+
+마지막으로 Montage Sections 패널에서 Clear를 눌러 Section 사이의 자동 연결을
+제거했다.\
+이를 통해 한 방향의 피격 애니메이션이 끝난 뒤 다음 방향 Section이 연속 재생되지 않고,선택된 Section 하나만 재생된다.
+
+추가: 추가한 animation들의 Section을 선택하고 시작을 맞출때 shift를 누르면 된다.
