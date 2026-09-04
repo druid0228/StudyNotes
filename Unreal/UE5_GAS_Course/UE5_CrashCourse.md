@@ -2894,3 +2894,56 @@ Gameplay Cue는 기본적으로 네트워크에 복제되며 내부적으로 Mul
     → GA_CC_Player_Impact_Cues가 이벤트 수신
     → Payload의 Instigator를 GameplayCueParameters에 전달
 ```
+
+### 69. Gameplay Cue Parameters
+
+이번 강의에서는 Gameplay Cue를 사용할때 추가적인 정보를 전달하는 방법을 배운다\
+예를들어 이펙트나 사운드등을 재생하고 싶을 때.\
+Melee Attack 이 발생했을때 어떤 파티클이 재생되게 만들것이다.
+
+파티클 시스템을 GameplayEventData에 담아 전달하고, 최종적으로 GameplayCue가 이를 꺼내 타격 지점에 생성하도록 구현했다.
+
+Payload의 Optional Object를 통해서 UObject*를 보낼수 있고\
+여기에 Particle System을 보낼수 있다.
+
+여러 방법이 다 가능하지만, 강의에서는 Break Gameplay Event Data의 output들을\
+Make Gameplay Event Data의 input으로 전부 연결해서 사용하는 법은 너무 지저분하다고 느껴서\
+이전에 구현한 `Send Damage Event to Player`에 직접 Optional Object를 보내도록 수정할 것이다.
+
+기존 함수에 UObject* OptionalParticleSystem = nullptr 인자를 추가하고,\
+함수 내부의 Payload.OptionalObject에 넣었다.
+
+주의 할 점은 `UBlueprintFunctionLibrary`은 함수 인자로 non-const reference가 기본적으로 out parameter로 취급된다는 것이다.\
+따라서 UPARAM(ref)을 사용하여 Payload를 Blueprint 입력 핀으로 취급하도록 지정했다.
+```cpp
+UFUNCTION(BlueprintCallable)
+	static void SendDamagedEventToPlayer(AActor* Target, const TSubclassOf<UGameplayEffect>& DamageEffect,UPARAM(ref) FGameplayEventData& Payload,const FGameplayTag& DataTag,float Damage,UObject* OptionalParticleSystem=nullptr);
+```
+
+이후 GC_HitReact에서는 GameplayCueParameters의 SourceObject와
+EffectContext에서 얻은 HitResult를 로컬 변수로 캐싱했다.
+
+GA_CC_Attack_Melee에 ImpactParticles : ParticleSystem Object Reference 변수를 추가 하고\
+재생할 이펙트를 등록했다.
+
+GA_CC_Attack_Melee에 설정한 ImpactParticles를 OptionalObject로 전달하고,\
+GC_HitReact에서는 SourceObject를 ParticleSystem으로 캐스팅한 뒤
+Spawn Emitter at Location을 실행했다.\
+HitResult.ImpactPoint는 파티클 생성 위치로 사용한다.
+
+주의: GC_HitReact로 HitResult가 전달되도록 Payload의 EffectContext도 GameplayCueParameters에 연결해야 한다.
+
+이 구조의 장점은 공격 Gameplay Ability에서 추가 이펙트를 전달하므로,\
+공격자나 공격 종류에 따라 서로 다른 Hit Particle을 설정할 수 있다는 것이다.
+
+
+흐름
+```
+GA_CC_Attack_Melee
+    → SendDamagedEventToPlayer
+    → Payload.OptionalObject에 ParticleSystem 저장
+    → HitReact Gameplay Event 전송
+    → Player Impact Gameplay Ability
+    → GameplayCueParameters.SourceObject에 OptionalObject 전달
+    → GC_HitReact에서 SourceObject 사용
+```
