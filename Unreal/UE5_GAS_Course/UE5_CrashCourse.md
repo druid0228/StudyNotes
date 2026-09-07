@@ -1487,7 +1487,7 @@ Ability 활성화 되면 PlayMontageAndWait으로 재생. Death Montage는 Varia
 이후 Startup Ability에 각각 넣어줌
 
 ListenForHealthChange에서 Health를 <= 로 비교하여 branch true일때\
-GAS의 Try Activate Abilites by Tag로 Death Ability를 실행하게 했다.
+GAS의 Try Activate Abilities by Tag로 Death Ability를 실행하게 했다.
 
 강의에서는 Make Literal Gameplay Tag -> Make Gameplay Tag Container from Tag 순서로 연결해줬는데\
 내가 시도할때는 Make Gameplay Tag Container from Tag만 쓰고 동작이 잘 되었어서 의문이 생겼다.
@@ -2947,3 +2947,38 @@ GA_CC_Attack_Melee
     → GameplayCueParameters.SourceObject에 OptionalObject 전달
     → GC_HitReact에서 SourceObject 사용
 ```
+
+### 70. Player Respawn
+
+Player의 사망과 리스폰을 구현한다.
+
+`AM_Death_Player`를 만들었다.\
+이 애니메이션은 DefaultSlot에서 동작하는데,\
+기존의 AnimGraph에 DefaultSlot이 존재하지 않았다.\
+Output Pose 앞에 Slot 'DefaultSlot' 으로 추가해주었다.
+
+추가: AnimGraph의 Slot은 Montage의 Pose가 애니메이션 그래프에 합류하는 지점이다.
+* Montage가 재생되지 않을 때는 Source Pose가 그대로 출력된다.
+* Montage가 재생되면 Blend Weight에 따라 Source Pose와 섞인다.
+* Montage가 최대 Weight에 도달하면 해당 Slot의 Montage Pose가 Source Pose를 사실상 대체한다.
+이번에는 DefaultSlot을 Output Pose 바로 앞에 배치했기 때문에 Death Montage가 캐릭터의 전체 Pose를 덮어쓴다.
+
+GA_CC_Death에서 Child BP Class를 만들었다. `BP_CC_Death_Player`\
+그리고 default의 Death Montage를 위에서 생성한 AM_Death_Player로 등록한다.\
+이후에 BP_CC_PlayerCharacter에서 StartupAbilities에 등록한다.
+
+GA_CC_PlayerImpactCues에서 Death Event를 wait하는 부분 뒤에,
+ASC의 Try Activate Abilities by Tag로 Death를 실행하게 했다.
+
+```
+Death Gameplay Event 수신
+    → Actor Info에서 ASC 가져오기
+    → Abilities.Death 태그로 Ability 검색
+    → Try Activate Abilities by Tag
+    → BP_CC_Death_Player 실행
+```
+
+에러: Death 뒤에 Reset Attributes Effect 문제가 생김. BP_PlayerCharacter에 할당 안해둬서 생긴 문제. 해결
+
+
+
