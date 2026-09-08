@@ -2980,5 +2980,19 @@ Death Gameplay Event 수신
 
 에러: Death 뒤에 Reset Attributes Effect 문제가 생김. BP_PlayerCharacter에 할당 안해둬서 생긴 문제. 해결
 
+### 71. Blocking Player Input
+
+죽는 Montage 재생중에도 이동되거나 심지어 공격이 실행되는 문제가 있었다.\
+간단하게 PlayerController에서 조건들을 추가해서 막는다.
+
+IsAlive함수를 추가하여 Player가 Valid한지 BaseCharacter->IsAlive()가 true인지 검사하여 return 한다.
+
+jump, move 등의 함수의 맨위에서 검사한다.\
+Primary, Secondary, Tertiary등은 ActivateAbilitiy를 공통으로 호출하기 때문에,\
+이 함수 하나에서 검사했다.
+
+이것으로 IsAlive가 False일때 모든 동작을 막았다.
+
+
 
 
