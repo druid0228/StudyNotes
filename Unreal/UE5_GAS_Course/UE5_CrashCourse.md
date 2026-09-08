@@ -2993,6 +2993,46 @@ Primary, Secondary, Tertiary등은 ActivateAbilitiy를 공통으로 호출하기
 
 이것으로 IsAlive가 False일때 모든 동작을 막았다.
 
+### 72. Gameplay Cue Notify Burst
+
+기존 GC_HitReact는 피격시 잘 동작했지만\
+치명적인 공격에서는 Death Ability만 실행되므로 피격 파티클이 나타나지 않았다.\
+이를 실행할 별도의 Gameplay Cue를 만들었다.
 
 
+Gameplay Cue Notify Burst
 
+GameplayCueNotify_Burst를 부모로 GC_Burst_Impact를 생성했다.
+
+GameplayCueNotify_Burst는 월드에 Actor 인스턴스를 생성하지 않는 GameplayCueNotify_Static 계열이다.\
+일회성 파티클, 사운드, 카메라 흔들림 같은 순간적인 효과에 적합하며 Actor 방식보다 가볍다.
+
+GameplayCue.Burst.Impact 태그를 추가했다.
+
+GameplayCueNotify_Burst의 Class Defaults에는 다음과 같은 효과를 자동으로 실행하는 설정이 있다.
+
+* Burst Particles
+* Burst Sounds
+* Camera Shake
+
+테스트를 위해 NS_Burst Niagara System을 만들고 붉은색 Omnidirectional Burst로 설정했다. 이를 Burst Particles에 지정하면 Cue 실행 시 별도의 Blueprint 로직 없이 자동으로 재생된다.
+
+실제 구현에서는 OnBurst를 오버라이드하여 SourceObject로 전달된 기존 Particle System을 꺼내고, EffectContext의 Impact Point에 직접 생성했다.
+
+사망 시 Burst Cue 실행
+
+Player Impact Cue에서 공격이 치명적일 때 Death Ability를 활성화한 직후 다음 노드를 실행했다.
+
+`Execute Gameplay Cue on Actor`
+
+```
+근접 공격 적중
+→ Payload에 Hit Result와 Particle System 전달
+→ 치명타 판정
+→ Death Ability 활성화
+→ GameplayCue.Burst.Impact 실행
+→ OnBurst
+→ SourceObject에서 Particle System 추출
+→ EffectContext에서 Impact Point 추출
+→ 사망 피격 파티클 생성
+```
