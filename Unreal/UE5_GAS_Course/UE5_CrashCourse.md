@@ -3036,3 +3036,47 @@ Player Impact Cue에서 공격이 치명적일 때 Death Ability를 활성화한
 → EffectContext에서 Impact Point 추출
 → 사망 피격 파티클 생성
 ```
+
+### 73. Camera Shakes
+
+더 임팩트 있는 효과를 위해 camera shake를 추가한다.
+
+Blueprint Class 추가에서 CameraShakeBase를 상속받아\
+`BP_DeathCameraShake`와 `BP_ImpactCameraShake` 를 추가했다.
+* BP_DeathCameraShake: 사망 시 사용할 강한 흔들림
+* BP_ImpactCameraShake: 일반 피격 시 사용할 짧은 흔들림
+
+CameraShake는 Wave Oscillator Camera Shake Pattern을 선택했고\
+원하는 화면 흔들림 축에 따라 Location을 Z축만 혹은 Y,Z 축만 사용하도록 했다.\
+Amplitude는 강도, Frequency는 빈도다. 값이 클수록 더 빠르게 흔들린다\
+Timing에서 duration을 각 2초, 0.25초로 설정했다.
+
+GameplayCueNotify_Burst에는 Class Default에\
+Burst Effects -> Burst Camera Shake가 있다.\
+이곳에 BP_DeathCameraShake를 등록하여 죽었을때 이펙트를 동작하게 했다.
+
+반대로 Burst가 아닌 GameplayCue는 기본으로 내장되어 있지 않고 직접 호출해야한다.
+
+Particle cast 이전에 `Play World Camera Shake` 를 호출했다.\
+World Context Object에는 MyTarget을\
+Epicenter에는 Get Actor Location으로 넘겨주고,
+inner outer radius를 1000으로 설정했다.
+
+Inner Radius 안에서는 Camera Shake가 완전한 강도로 적용되고,\
+Inner Radius와 Outer Radius 사이에서는 거리에 따라 약해진다.\
+두 값을 모두 1000으로 설정하면 반경 1000 안에서 감쇠 없이 적용된다.
+
+```
+캐릭터(Epicenter) ───── Camera Boom ───── 카메라
+```
+- Epicenter: Camera Shake의 발생 중심점이자 거리 계산 기준
+- 실제 흔들리는 대상: 플레이어의 카메라
+- 거리 계산: Epicenter ↔ 카메라 위치
+
+카메라가 어디에 있느냐에 따라 흔들림의 강도가 결정된다.
+
+- Inner Radius 안: 최대 강도
+- Inner Radius ~ Outer Radius 사이: 거리가 멀어질수록 강도가 감소
+
+Play World Camera Shake는 월드 공간에 발생하는 폭발처럼,\
+주변 플레이어마다 거리에 따른 흔들림을 다르게 줄 때 특히 유용하다.
