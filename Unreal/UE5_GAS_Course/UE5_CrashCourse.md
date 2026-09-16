@@ -3080,3 +3080,52 @@ Inner Radius와 Outer Radius 사이에서는 거리에 따라 약해진다.\
 
 Play World Camera Shake는 월드 공간에 발생하는 폭발처럼,\
 주변 플레이어마다 거리에 따른 흔들림을 다르게 줄 때 특히 유용하다.
+
+
+
+### 74. Block Hit React
+
+현재 구조에서 공격중에 피격 당하면 공격이 중단되고 HitReact가 되는 문제가 있었다.
+
+이 문제는 Attack Montage의 Rate Scale을 1.0에서 0.1로 낮추면 쉽게 확인할 수 있다.
+
+이 문제를 쉽게 해결하기 위해 gameplay tag로 Block Hit React를 구현한다.
+
+CCTags.CCAbilities.BlockHitReact 를 추가했다.
+
+`GE_BlockHitReact`를 작성했다.
+* Duration Policy : Infinite
+* Component: Grant Tags to Target Actor
+* Stacking Type: Aggregate to Target
+	* Stack Limit Count: 1
+
+스태킹 방식의 차이는 다음과 같다.
+* Aggregate by Target: Effect를 적용한 Source가 달라도 같은 Target에서는 하나의 스택 그룹을 공유한다.
+* Aggregate by Source: 같은 Target에 적용되더라도 Source별로 별도의 스택 그룹을 가진다.
+
+이번 Effect는 공격 중인지 나타내는 용도이므로 중복될 필요가 없어 Stack Limit을 1로 설정했다.
+
+`GA_CC_Primary`로 가서 Play Montage 이전에 태그를 부여했다.
+
+```
+Get Ability System Component from Actor Info
+Make Outgoing Spec{GE_BlockHitReact}
+ApplyGameplayEffectSpecToSelf
+```
+
+그리고 Event OnEndAbility 에서\
+`RemoveGameplayEffectFromOwnerWithGrantedTags`\
+태그 CCTags.CCAbilities.BlockHitReact로 제거를 했다.\
+주의 Stackt to Remove는 -1이 아니라 1
+
+이후 HitReact의 PlayMontage 이전에 `Has Matching Gameplay Tag`로\
+BlockHitReact인지 아닌지 검사해서 branch로 false일때만 재생하게 하면 된다.
+
+강의 마지막으로 해당 조건 분기를 GA_CC_PlayerImpactCues에서\
+GC_HitReact로 옮기고 내부적으로 Node를 정리했다.
+
+Sequence로 카메라 흔들림, 이펙트 출력, 애니메이션 출력등을 구분했고.\
+공격중에는 애니메이션의 출력만 막고 다른 효과들은 동작하도록 하였다.
+
+주의: 기존에는 Animation이 맨 앞이라 괜찮았지만 sequncne 구조로 바꾸었을때\
+Cast Particle failed 부분의 Return Node를 제거해야한다.
