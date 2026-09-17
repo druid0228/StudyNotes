@@ -3137,3 +3137,32 @@ Cast Particle failed 부분의 Return Node를 제거해야한다.
 
 
 
+### 76. Secondary Ability
+
+이번 섹션에서는 cool down과 cost를 ability에 설정할 것이다.\
+기존의 primary는 그대로 두고 secondary와 tertiary에 추가할 것이다.
+
+이번 강의에서는 Secondary Ability를 준비했다.
+
+기존의 debug용 print string을 삭제하고 primary와 같이,\
+어빌리티 시작시에 BlockHitReact를 부여하고 종료시에 삭제를 추가했다.
+
+Boris asset에서 애니메이션을 하나 duplicate하고 길이를 절반으로 만든 뒤에 montage로 만들었다.
+
+
+GA_Secondary의 Class Defaults에는 다음 태그를 설정했다.
+
+* Block Abilities with Tag: Primary, Tertiary
+* Activation Blocked Tags: Primary, Tertiary
+
+따라서 Secondary가 실행 중일 때 Primary와 Tertiary가 실행되지 않으며, 반대로 Primary 또는 Tertiary가 실행 중일 때도 Secondary를 활성화할 수 없다.
+
+Net Execution Policy는 Local Predicted, Instancing Policy는 Instanced Per Actor로 설정했다.
+
+CCTags.Events.Player.Secondary 태그를 추가하고,\
+Montage에서 공격 지점에 `AN_SendEventToActor` Notify를 추가했다.
+
+GA_Secondary에서는 Sequence의 별도 실행 핀에서 Wait Gameplay Event로 CCTags.Events.Player.Secondary 이벤트를 기다린다.\
+이벤트를 수신하면 임시 Print String을 출력하여 정상적으로 전달되는 것을 확인했다.
+
+기본 구조는 Primary와 같고 Montage와 Event를 포함한 어빌리티의 기본 동작을 우선 구현하여 다음을 위한 준비를 했다.
