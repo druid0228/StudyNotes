@@ -3129,3 +3129,11 @@ Sequence로 카메라 흔들림, 이펙트 출력, 애니메이션 출력등을 
 
 주의: 기존에는 Animation이 맨 앞이라 괜찮았지만 sequncne 구조로 바꾸었을때\
 Cast Particle failed 부분의 Return Node를 제거해야한다.
+
+
+## Section 8: Cost and Cooldown
+
+### 75. Section 8 Intro
+
+
+
