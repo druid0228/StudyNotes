@@ -3166,3 +3166,15 @@ GA_Secondary에서는 Sequence의 별도 실행 핀에서 Wait Gameplay Event로
 이벤트를 수신하면 임시 Print String을 출력하여 정상적으로 전달되는 것을 확인했다.
 
 기본 구조는 Primary와 같고 Montage와 Event를 포함한 어빌리티의 기본 동작을 우선 구현하여 다음을 위한 준비를 했다.
+
+### 77. Secondary Ability Cosmetic Effect
+
+Secondary Ability의 Effect를 추가했다.
+
+기존의 Print String을 삭제하고.\
+Sequence를 추가
+
+각각 Spawn Emitter At Location과 Play World Camera Shake를 사용하여\
+Ability의 Effect를 추가했다.
+
+다음 강의에는 이 Ability의 실제 충돌과 밀쳐지는 효과를 구현할 것이다.
