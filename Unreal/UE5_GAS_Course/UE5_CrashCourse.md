@@ -3178,3 +3178,73 @@ Sequence를 추가
 Ability의 Effect를 추가했다.
 
 다음 강의에는 이 Ability의 실제 충돌과 밀쳐지는 효과를 구현할 것이다.
+
+### 78. Overlap Test
+
+기존에 Primary Ability에 존재하던 Hit Box Overlap Test를 Secondary에서도 사용 가능하게 한다.\
+여러 방법이 있지만 cpp에 구현되어 있는 내용을 CC_BlueprintLibrary의 Static함수로 옮겨서,\
+재사용이 가능하게 만들것이다.
+
+강사 분이 알려준 내용은 기존의 함수 선언을 복사하여 옮긴다,\
+위에서부터 하나씩 빨간줄을 체크하여 필요한 변수들을 함수 인자에 추가하는 방법이다.
+
+```cpp
+GetAvatarActorFromActorInfo() -> AActor* AvatarActor
+GetWorld() -> UWorld* World = GEngine->GetWorldFromContextObject(AvatarActor,EGetWorldErrorMode::LogAndReturnNull);
+```
+
+```cpp
+TArray<AActor*> UCC_BlueprintLibrary::HitBoxOverlapTest(AActor* AvatarActor,float HitBoxRadius,float HitBoxForwardOffset,float HitBoxElevationOffset,bool bDrawDebugs)
+{
+	// 체크를 추가한다.
+	if (!IsValid(AvatarActor))return TArray<AActor*>();
+	
+	// 기존에 TArracy<AActor*> ActortoIgnore 를 사용하던것을 삭제하고
+	// AddIgnoredActor에 AvatarActor 넣는것으로 대체
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(AvatarActor);
+
+	...
+	
+	// GEngine->GetWorldFromContextObject 사용하여 World 가져오기 이후 World 체크
+	UWorld* World = GEngine->GetWorldFromContextObject(AvatarActor,EGetWorldErrorMode::LogAndReturnNull);
+	if (!IsValid(World))return TArray<AActor*>();
+	
+	...
+	
+	TArray<AActor*> ActorsHit;
+	for (const FOverlapResult& Result : OverlapResults)
+	{
+		// Result.GetActor() 체크 대신 BaseCharacter로 Cast해서 체크
+		// 추가로 IsAlive도 체크
+		ACC_BaseCharacter* BaseCharacter = Cast<ACC_BaseCharacter>(Result.GetActor());
+		if (!IsValid(BaseCharacter))continue;
+		if (!BaseCharacter->IsAlive())continue;
+		ActorsHit.AddUnique(BaseCharacter);
+	}
+	
+	if (bDrawDebugs)
+	{
+		// DrawHitBoxOverlapDebugs도 가져오면서 인자가 추가적으로 필요해진것들 넣어주기
+		DrawHitBoxOverlapDebugs(AvatarActor,OverlapResults,HitBoxLocation,HitBoxRadius);
+	}
+	
+	return ActorsHit;
+}
+```
+
+CC_BlueprintLibrary에 함수들을 추가하고 Primary에서 해당 함수들을 삭제했다.\
+Primary의 반경과 오프셋 멤버를 Blueprint에서 연결하려고 protected로 옮기고\
+BlueprintReadOnly를 추가했다.
+
+추가: private을 유지하고 meta=(AllowPrivateAccess="true")를 사용하는 방법과,\
+public/protected로 옮기고 BlueprintReadOnly를 추가하여 BPGraph에서 읽을수 있게 하는 방법이 있다.
+
+이후 Primary에서 컴파일할때 에러가 나올것을 예상했지만,\
+기존의 HitBoxOverlapTest함수가 옮겨진 것으로 자동으로 대체되어 있었다.\
+하지만 언제나 이렇게 될 것이라고 생각하면 안될것 같다.\
+원래 사용하던 멤버변수를 인자로 HitBoxOverlapTest함수를 실행하여 동일한 동작을 유지했다.
+
+마지막으로 Secondary에서 Sequence3에 HitBoxOverlapTest를 넣고 Radius를 1000.0f로 주어서\
+넓은 범위에 공격하는것을 Debug Sphere로 확인 했다.\
+다음 강의에서는 넉백을 추가할 것이다.
