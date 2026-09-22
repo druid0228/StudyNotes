@@ -3248,3 +3248,86 @@ public/protected로 옮기고 BlueprintReadOnly를 추가하여 BPGraph에서 �
 마지막으로 Secondary에서 Sequence3에 HitBoxOverlapTest를 넣고 Radius를 1000.0f로 주어서\
 넓은 범위에 공격하는것을 Debug Sphere로 확인 했다.\
 다음 강의에서는 넉백을 추가할 것이다.
+
+
+### 79. Knockback
+
+이번 강의에서는 Secondary Ability의 Overlap Test로 찾은 적을 시전자에게서 멀어지는 방향으로 날리는\
+CC_BlueprintLibrary::ApplyKnockback 함수를 만들었다\
+넉백의 방향, 거리별 강도, 위로 뜨는 각도를 계산한 뒤 ACharacter::LaunchCharacter에 전달한다.
+
+```cpp
+UFUNCTION(BlueprintCallable,Category="Crash|Abilities")
+	static TArray<AActor*> ApplyKnockback(
+		AActor* AvatarActor,
+		const TArray<AActor*>& HitActors,
+		float InnerRadius,	// InnerRadius와 OuterRadius로 효과 반경및 정도를 조절
+		float OuterRadius,
+		float LaunchForceMagnitude,
+		float RotationAngle = 45.f,
+		bool bDrawDebugs = false
+		);
+```
+
+날라가는 효과 구현에 사용될 핵심 함수
+```cpp
+void ACharacter::LaunchCharacter(FVector LaunchVelocity, bool bXYOverride, bool bZOverride)
+```
+CharacterMovement로 구현되어있는 날리는 함수가 기본으로 있다.\
+뒤의 인자는 날릴때 XY, Z의 Vector를 Add할것인지 Override할 것인지\
+이번 함수에서는 실제로 그 방향으로 날릴 것이므로 둘다 true로 쓴다.
+
+
+```cpp
+{
+	if (!IsValid(AvatarActor))return TArray<AActor*>();	// 강의에서는 루프안에 있었는데 한번만
+	
+	for (AActor* Actor : HitActors)
+	{
+		ACharacter* HitCharacter = Cast<ACharacter>(Actor);
+
+		const FVector ToHitActor = HitCharacterLocation - AvatarLocation;
+		const float Distance = FVector::Distance(HitCharacterLocation,AvatarLocation);
+		
+		// 최대 범위의 조절 및 범위에 따른 강도
+		float LaunchForce = 0.0f;
+		if (Distance>OuterRadius) continue;
+		if (Distance<=InnerRadius) LaunchForce = LaunchForceMagnitude;
+		else
+		{
+			const FVector2D FalloffRange(InnerRadius,OuterRadius); // input ragne
+			const FVector2D LaunchForceRange(LaunchForceMagnitude,0.0f); // output range
+			// GetMappedRangeValueClamped 함수를 사용해서 0~LaunchForceMagnitude 범위의 LaunchForce를 설정한다.
+			LaunchForce=FMath::GetMappedRangeValueClamped(FalloffRange,LaunchForceRange,Distance);
+		}
+
+		FVector KnockbackForce = ToHitActor.GetSafeNormal();
+		KnockbackForce.Z = 0;
+		
+		const FVector Right = KnockbackForce.RotateAngleAxis(90.f,FVector::UpVector);
+		KnockbackForce = KnockbackForce.RotateAngleAxis(-RotationAngle,Right) * LaunchForce;
+		
+		if (bDrawDebugs)
+		{
+			DrawDebugDirectionalArrow(World,HitCharacterLocation,HitCharacterLocation+KnockbackForce,100.0f,FColor::Green,false,3.0f);	// 힘의 방향을 확인할수 있는 화살표
+		}
+		HitCharacter->LaunchCharacter(KnockbackForce,true,true);
+	}
+	return HitActors;
+}
+```
+
+추가: 강의에서 반환값을 void에서 TArray<AActor*> 바꾸었는데 Blueprint node에서 이어 쓸 수 있도록 반환형을 추가한것이다.\
+실제로 넉백된 캐릭터들만 모은 배열은 아니다.
+
+
+Right 백터에 관한 추가설명\
+
+KnockbackForce는 적 캐릭터가 바라보는 Forward가 아니다.\
+시전자에게서 적을 향하는 수평 넉백 방향이다.\
+Right도 적 캐릭터의 오른쪽이 아니라 그 넉백 방향을 기준으로 한 오른쪽이다.
+
+UE의 축을 간단한 예로 놓으면 +X = Forward, +Y = Right, +Z = Up이다. 따라서 넉백 방향이 (1, 0, 0)일 때\
+Up축을 기준으로 +90° 회전하면 (0, 1, 0), 즉 그 방향의 Right가 된다. 임의의 수평 방향에서도 같은 방식으로 그 방향에 수직인 축을 얻는다.
+
+결과적으로 Right축을 중심으로 넉백 방향을 -RotationAngle 만큼 회전하면 벡터가 위로 기울어진다.
