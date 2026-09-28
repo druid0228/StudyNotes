@@ -3331,3 +3331,80 @@ UE의 축을 간단한 예로 놓으면 +X = Forward, +Y = Right, +Z = Up이다.
 Up축을 기준으로 +90° 회전하면 (0, 1, 0), 즉 그 방향의 Right가 된다. 임의의 수평 방향에서도 같은 방식으로 그 방향에 수직인 축을 얻는다.
 
 결과적으로 Right축을 중심으로 넉백 방향을 -RotationAngle 만큼 회전하면 벡터가 위로 기울어진다.
+
+
+
+### 80. Airborne Enemies
+
+넉백으로 적을 공중에 띄워도 AI는 계속 플레이어를 찾고 이동하려 해서, 공중에서 달리는 애니메이션이 재생된다.\
+이번 강의에서는 착지할 때까지 이동과 타깃 탐색을 멈추고, 그동안 넉백 애니메이션을 보여준다.
+
+ACC_EnemyCharacter에 복제되는 bIsBeingLaunched를 추가하고 GetLifetimeReplicatedProps에서 등록했다.
+
+`StopMovementUntilLanded` 함수를 작성했다.
+StopMovementUntilLanded()에서 이동을 멈추고 값을 true로 설정한 뒤 LandedDelegate에 착지 콜백을 연결한다.\
+Character에는 LandedDelegate가 존재해서 착지했을 때 처리를 할 수 있다.
+
+착지 콜백에서 값을 false로 되돌리고 델리게이트 연결을 해제했다.\
+이어서 EndAttack 게임플레이 이벤트를 보내 타깃 탐색을 다시 시작시킨다.
+```cpp
+void ACC_EnemyCharacter::StopMovementUntilLanded()
+{
+	bIsBeingLaunched = true;
+	...
+	if (!LandedDelegate.IsAlreadyBound(this,&ThisClass::EnableMovementOnLanded))
+	{
+		LandedDelegate.AddDynamic(this,&ThisClass::EnableMovementOnLanded);
+	}
+}
+
+
+void ACC_EnemyCharacter::EnableMovementOnLanded(const FHitResult& Hit)
+{
+	bIsBeingLaunched = false;
+	UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(this,CCTags::Events::Enemy::EndAttack,FGameplayEventData());
+	
+	LandedDelegate.RemoveAll(this);
+}
+```
+
+ApplyKnockback에서 적에게 LaunchCharacter를 적용할 때 StopMovementUntilLanded()도 호출한다.
+
+```cpp
+UCC_BlueprintLibrary::ApplyKnockback
+{
+	// C++17 If statement with initializer if(initialize; condition)
+	if (ACC_EnemyCharacter* EnemyCharacter = Cast<ACC_EnemyCharacter>(HitCharacter);IsValid(EnemyCharacter))
+	{
+		EnemyCharacter->StopMovementUntilLanded();
+	}
+		
+		HitCharacter->LaunchCharacter(KnockbackForce,true,true);
+	}
+
+```
+SearchForTarget은 EndAttack 이벤트를 받아도 bIsBeingLaunched가 true면 탐색을 시작하지 않는다.
+
+
+근접·원거리 적의 AnimBP에서 이 값을 읽어, 공중에 있는 동안 이동 애니메이션 대신 넉백 애니메이션을 재생한다.
+
+```cpp
+	UPROPERTY(VisibleAnywhere,BlueprintReadOnly,Replicated)
+	bool bIsBeingLaunched{false};
+```
+변수를 BlueprintReadOnly로 두고 Blueprint Thread Safe Update Animation에서\
+ABP에 IsBeingLaunced boolean variable을 Set하는 방식으로 사용한다.
+
+Anim Graph에서 Blend Poses by bool을 사용하여, IsBeingLaunced에 따라서\
+기존의 Idle 혹은 Launched 애니메이션을 재생하도록 했다.
+
+Launched 애니메이션을 단일로 가져와서 재생했을때 동작이 한번만 되었다.\
+별도의 상태머신으로 옮기고 Always Reset on Entry를 켜서, 다시 띄워질 때마다 처음부터 재생되게 했다.\
+
+Entry -> Launched -> Land 로 구현했으며.\
+transition에서 `Automatic Rule Based on Sequence Player in State`를 true로 했다.\
+현재 State의 애니메이션 재생이 끝나갈 때 다음 State로 자동 전환하는 옵션이다.
+
+Melee는 위처럼 공중 동작과 랜드 동작을 구분해서 만들었지만,\
+Ranged는 Loop 애니매이션을 사용했다.\
+그렇기 때문에 따로 State추가 없이 단순 애니메이션 하나를 blend pose에 연결하고 Loop하도록 했다. 
