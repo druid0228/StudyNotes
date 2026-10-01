@@ -3408,3 +3408,48 @@ transition에서 `Automatic Rule Based on Sequence Player in State`를 true로 �
 Melee는 위처럼 공중 동작과 랜드 동작을 구분해서 만들었지만,\
 Ranged는 Loop 애니매이션을 사용했다.\
 그렇기 때문에 따로 State추가 없이 단순 애니메이션 하나를 blend pose에 연결하고 Loop하도록 했다. 
+
+
+### 81. Damage Enemies
+
+Secondary Ability에 Damage를 추가한다.
+
+`GE_Player_SecondaryDamage`를 생성하고 Modifier를 설정했다.
+* Attribute: Health
+* Modifier Op: Add
+* Magnitude Calculation Type: Set By Caller
+* Data Tag: CCTags.SetByCaller.Player.Secondary
+
+피해량은 어빌리티에서 전달하며, 기존 유틸리티 함수가 전달받은 피해량을 음수로 바꾸어 Health에 적용한다.
+
+UCC_BlueprintLibrary::SendDamagedEventToPlayer에 EventTagOverride 매개변수를 추가했다.\
+마지막 매개변수에는 기본값이 있으므로 그 앞에 배치했다.\
+또한 CCTags::None 태그를 추가하고, 전달된 태그에 따라 이벤트를 결정하도록 변경했다.
+
+| EventTagOverride | 처리 |
+|---|---|
+| `CCTags::None` | 기존처럼 치명적 피해 여부에 따라 Death 또는 HitReact 이벤트 선택 |
+| 다른 태그 | 전달된 태그로 이벤트 전송 |
+
+MatchesTagExact로 CCTags::None과 정확히 일치하는지 확인한다.
+여러 대상에게 피해를 줄 수 있도록 SendDamagedEventToPlayers도 추가했다.\
+이 함수는 TArray<AActor*> Targets를 순회하면서 단일 대상 함수를 호출한다.\ 
+Blueprint에서 반복문을 직접 구성하지 않아도 된다.
+
+GA_Secondary에 피해 연결\
+적중한 대상 배열을 SendDamagedEventToPlayers의 Targets에 연결하고 다음 값을 설정했다.
+* Damage Effect: GE_Player_SecondaryDamage
+* Payload: Make Gameplay Event Data로 생성하고, Instigator에 Avatar Actor 지정
+* Data Tag: CCTags.SetByCaller.Player.Secondary
+* Event Tag Override: CCTags.None
+* Optional Particle System: 생략
+* Damage: 50으로 테스트한 뒤 10으로 변경
+
+Gameplay Event를 받아 효과를 처리한 뒤 EndAbility를 호출하도록 추가했다.\
+Secondary가 종료되지 않아 리스폰이 진행되지 않던 문제를 해결했다.
+
+Class Defaults의 Activation Blocked Tags에는 Death Ability 태그를 추가하고,\
+Secondary 사용 후 사망해도 정상적으로 리스폰하는지 확인했다.
+
+주의: 강의에서는 HitReact 이벤트를 보내고 싶지 않다고 설명했지만, CCTags::None을 전달하면 기존 로직에 따라 Player의 Death / HitReact 이벤트가 전송된다.\
+다만 Enemy는 해당 이벤트를 처리하지 않으므로 그 이벤트에 따른 반응은 발생하지 않는다. 피해 Gameplay Effect는 정상적으로 적용된다.
