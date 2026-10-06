@@ -3453,3 +3453,44 @@ Secondary 사용 후 사망해도 정상적으로 리스폰하는지 확인했�
 
 주의: 강의에서는 HitReact 이벤트를 보내고 싶지 않다고 설명했지만, CCTags::None을 전달하면 기존 로직에 따라 Player의 Death / HitReact 이벤트가 전송된다.\
 다만 Enemy는 해당 이벤트를 처리하지 않으므로 그 이벤트에 따른 반응은 발생하지 않는다. 피해 Gameplay Effect는 정상적으로 적용된다.
+
+### 82. Ability Cost
+
+이번 강의에서는 Ability에 Cost를 부여하는 방법을 배운다.
+
+GA_Secondary의 Class Defaults를 보면 Costs 카테고리가 있다.\
+Cost Gameplay Effect Class를 등록해야한다.
+
+`GE_Cost_Secondary`를 작성했다.\
+Duration Policy를 Instant로 설정하고, Mana Attribute에 Add 연산으로 고정값 -50을 적용하여 마나 50을 차감하도록 했다.
+
+
+Ability의 EventGraph에서 `CommitAbility`로 Cost나 Cooldown을 체크하고 실제 적용한다.\
+| 노드 | 역할 |
+|---|---|
+| `Commit Ability` | 비용과 쿨다운 적용 |
+| `Commit Ability Cost` | 비용만 적용 |
+| `Commit Ability Cooldown` | 쿨다운만 적용 |
+
+CommitAbility 노드를 사용할 때 비용이나 쿨다운 조건을 만족하지 않으면\
+Ability가 활성화되지 않으므로 별도의 Branch로 활성화 가능 여부를 검사할 필요는 없다
+
+주의: Cost Gameplay Effect Class를 등록하면, GAS는 Ability 활성화 단계에서 비용을 지불할 수 있는지 먼저 검사한다.\
+따라서 마나가 부족하면 Event Activate Ability 자체가 실행되지 않아 애니메이션도 재생되지 않는다.\
+CommitAbilityCost의 위치는 실제 마나를 차감하는 시점을 결정한다.\
+애니메이션의 공격 이벤트 뒤에 배치하면, 활성화 시 비용을 먼저 검사하고 공격 이벤트가 발생할 때 마나를 차감한다.
+
+
+`GE_AddMana`를 만들었다.\
+Duration Policy를 Has Duration으로 하고\
+* Duration Magnitude : 5.0
+* Period : 0.5
+* Modifier Magnitude : 5.0
+
+으로 설정하여 5초동안 0.5초 간격으로 마나 5를 회복하는 이펙트를 만들었다.\
+총 50의 마나를 회복하게 했다.
+
+실제로는 Execute Periodic Effect on Application이 체크되어 있어서\
+적용 즉시 마나 5를 회복하고 이후 0.5초마다 회복하여 총 55가 회복되었다.\
+강의에서는 Duration을 5.0에서 4.5로 변경하였다.\
+또는 Duration을 5.0초로 유지하고 해당 옵션을 해제하여, 첫 회복이 0.5초 뒤에 시작되도록 할 수 있다.
