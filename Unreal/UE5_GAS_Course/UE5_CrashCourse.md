@@ -3494,3 +3494,25 @@ Duration Policy를 Has Duration으로 하고\
 적용 즉시 마나 5를 회복하고 이후 0.5초마다 회복하여 총 55가 회복되었다.\
 강의에서는 Duration을 5.0에서 4.5로 변경하였다.\
 또는 Duration을 5.0초로 유지하고 해당 옵션을 해제하여, 첫 회복이 0.5초 뒤에 시작되도록 할 수 있다.
+
+
+
+### 83. Ability Cooldown
+
+Ability에 Cooldown을 추가한다.
+
+이전 Cost에 이어서 Cooldown 항목도 Ability Detail에 존재한다.
+
+`GE_Cooldown_Secondary`를 작성했다.
+* Duration Policy: Has Duration
+* Duration Magnitude: 3.0
+* Components.Granted Tags to Target Actor: CCTags.Cooldown.Secondary
+`CCTags.Cooldown.Secondary`태그를 추가하여 사용했다.\
+Cooldown에는 Tag가 필요하다.\
+Duration 동안 태그를 부여하여 해당 태그를 쿨다운 태그로 사용하는 Ability의 재활성화를 막고,\
+Duration이 끝나면 Tag가 제거되면서 스킬을 다시 쓸 수 있게 된다.
+
+`GA_Secondary`의 Cooldown에 추가하고,\
+기존의 CommitAbilityCost를 CommitAbility로 변경하여 Cost와 Cooldown을 함께 적용했다.
+
+추가: 쿨다운 3초는 Ability 시작 시점이 아니라 CommitAbility로 쿨다운을 적용한 시점부터 계산된다
