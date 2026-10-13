@@ -3516,3 +3516,15 @@ Duration이 끝나면 Tag가 제거되면서 스킬을 다시 쓸 수 있게 된
 기존의 CommitAbilityCost를 CommitAbility로 변경하여 Cost와 Cooldown을 함께 적용했다.
 
 추가: 쿨다운 3초는 Ability 시작 시점이 아니라 CommitAbility로 쿨다운을 적용한 시점부터 계산된다
+
+### 84. Search Range
+
+적이 플레이어와 충분히 가까워졌을 때만 추적을 시작하도록 탐색 범위를 추가한다.
+
+ACC_BaseCharacter에 float SearchRange를 추가한다.
+
+타깃 탐색에 거리 조건 추가\
+FindClosestActorWithTag에서 후보 액터까지의 거리를 계산한 뒤, 탐색 범위 밖이면 continue로 제외한다.
+
+탐색 주체는 WorldContextObject를 ACC_BaseCharacter로 캐스팅하여 얻는다.\
+따라서 SearchForTarget에서 첫 번째 인수로 전달하던 this(Gameplay Ability)를 GetAvatarActorFromActorInfo()로 변경했다.
