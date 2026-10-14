@@ -3528,3 +3528,42 @@ FindClosestActorWithTag에서 후보 액터까지의 거리를 계산한 뒤, �
 
 탐색 주체는 WorldContextObject를 ACC_BaseCharacter로 캐스팅하여 얻는다.\
 따라서 SearchForTarget에서 첫 번째 인수로 전달하던 this(Gameplay Ability)를 GetAvatarActorFromActorInfo()로 변경했다.
+
+
+### 85. Damage Numbers
+
+Health의 변화량을 계산하고, 캐릭터 위에 Niagara로 피해량 숫자를 표시한다.
+
+제공된 NS_FloatingNumber를 migrate로 가져왔다.
+
+기존 Attribute Widget 수정
+- OnAttributeChange와 BP_OnAttributeChange에 OldValue 매개변수를 추가했다.
+- Widget Component에서 초기값 전달 시에는 0, Attribute 변경 델리게이트에서는 AttributeChangeData.OldValue를 전달한다.
+- Widget에 BlueprintReadOnly인 TWeakObjectPtr<AActor> AvatarActor를 추가하고, Widget Component에서 캐릭터를 지정한다.
+
+Health Bar에서 피해량 표시
+
+기존 체력바 비율 갱신 로직을 SetDamagePercent 함수로 분리하고,\
+SpawnDamageNumbers(NewValue, OldValue) 함수를 작성했다.
+1. OldValue == 0이면 초기 갱신으로 간주하여 종료한다.
+2. Abs(NewValue - OldValue)를 내림하여 정수로 변환한다.
+3. 정수를 문자열로 바꾼 뒤, 각 자릿수를 배열로 분리한다.
+4. 자릿수마다 캐릭터 위치보다 Z축으로 200 높은 곳에 Niagara System을 생성한다.
+5. 카메라의 Right Vector 방향으로 간격을 두어 숫자를 나란히 배치한다. NumberSpacing은 10으로 설정했다.
+6. 각 자릿수를 정수로 변환하여 NumberTextures 배열에서 텍스처를 선택하고, Set Texture Object로 Niagara의 user.Digit 파라미터에 전달한다.
+
+추가: 
+NS_FloatingNumber는 효과의 원본 에셋이고, Spawn 노드가 반환하는 Number System은 월드에 생성된 개별 Niagara Component이다.\
+각 컴포넌트에 위치 Offset과 숫자 텍스처를 설정한다.
+
+예를 들어 피해량이 123이면 문자열 배열 ["1", "2", "3"]을 순회하며 컴포넌트 세 개를 생성하고, 각각 해당 숫자의 텍스처를 지정한다.
+
+TextOffset은 숫자를 옆으로 배치하기 위한 누적 거리이다.\
+처음에는 0이며, 숫자 하나를 배치할 때마다 NumberSpacing만큼 증가한다.
+
+카메라의 Right Vector는 화면 기준 오른쪽 방향이므로, Right Vector × TextOffset으로 보는 방향에 맞춰 숫자를 나란히 배치한다.
+
+텍스처를 설정할 대상인 컴포넌트가 필요하므로 Spawn 후 Texture를 설정한다.\
+다만 생성과 재생 시작은 구분할 수 있다.\
+재생 전에 설정을 완료하려면 Auto Activate를 끄고 Spawn한 뒤,\
+Offset과 Texture를 설정하고 Activate를 호출하면 된다.
