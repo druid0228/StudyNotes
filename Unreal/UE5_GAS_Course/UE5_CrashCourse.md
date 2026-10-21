@@ -3567,3 +3567,44 @@ TextOffset은 숫자를 옆으로 배치하기 위한 누적 거리이다.\
 다만 생성과 재생 시작은 구분할 수 있다.\
 재생 전에 설정을 완료하려면 Auto Activate를 끄고 Spawn한 뒤,\
 Offset과 Texture를 설정하고 Activate를 호출하면 된다.
+
+
+### 86. Orienting Projectiles
+
+플레이어와 적 사이에 고저차가 있어도 투사체가 플레이어에게 향하도록, 또한 적 캐릭터의 몸이 위아래로 기울어지지 않도록 한다.
+
+투사체 발사 수정
+
+기존에는 소켓의 회전에서 Pitch와 Roll을 제거하여 수평으로만 발사되었다.
+
+Attack Ranged Ability에서 발사 전에 `FindClosestActorWithTag`로 플레이어를 탐색한다.
+
+- World Context Object: GetAvatarActorFromActorInfo()
+- Origin: 적 캐릭터의 위치
+- Tag: Player
+- Search Range: AcceptanceRadius + 100
+탐색한 액터가 유효하면 `Find Look at Rotation`으로 발사 방향을 구한다. (Kismet Math Library)
+- Start: 발사 소켓의 위치
+- Target: 플레이어의 위치
+계산한 회전을 투사체의 Spawn Transform에 사용하여 높이 차이를 반영한다.
+
+적 캐릭터의 회전 수정
+
+Use Controller Desired Rotation를 true로 한다.
+| 설정 | 동작 |
+|---|---|
+| `true` | 컨트롤러의 목표 회전 방향으로 `Rotation Rate`에 맞춰 부드럽게 회전 |
+| `false` | 이 기능에 의한 자동 회전을 하지 않음 |
+
+
+SetFacingRotation에서 Find Look at Rotation에 전달하는 두 위치의 Z를 모두 0으로 맞춘다.\
+이렇게 하면 타깃을 바라볼 때 몸이 위아래로 기울어지지 않고 수평 방향으로만 회전한다.
+
+총구와 상체까지 타깃의 높이에 맞추려면 Animation Blueprint에서 Aim Offset 등을 추가해야 하며, 이번 강의에서는 다루지 않는다.
+
+참고:
+| 옵션 | 켰을 때 |
+|---|---|
+| **Use Controller Rotation Pitch / Yaw / Roll** | 캐릭터의 해당 회전축이 컨트롤러 회전을 직접 따라감 |
+| **Orient Rotation to Movement** | 캐릭터가 이동하는 방향으로 회전 |
+| **Use Controller Desired Rotation** | 컨트롤러가 원하는 방향으로 `Rotation Rate`에 따라 부드럽게 회전 |
