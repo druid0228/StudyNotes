@@ -3608,3 +3608,46 @@ SetFacingRotation에서 Find Look at Rotation에 전달하는 두 위치의 Z를
 | **Use Controller Rotation Pitch / Yaw / Roll** | 캐릭터의 해당 회전축이 컨트롤러 회전을 직접 따라감 |
 | **Orient Rotation to Movement** | 캐릭터가 이동하는 방향으로 회전 |
 | **Use Controller Desired Rotation** | 컨트롤러가 원하는 방향으로 `Rotation Rate`에 따라 부드럽게 회전 |
+
+### 87. Adding Cool Feature
+기존 시스템을 활용하여 몇 가지 기능을 추가한다.
+
+1. 적 리스폰 설정
+BP_CC_EnemyBase에 ShouldRespawn Bool 변수를 추가하고 Instance Editable로 설정한다.
+
+GA_CC_Death에서 사망 몽타주가 종료된 후 AvatarActor를 BP_CC_EnemyBase로 캐스팅하여 처리한다.
+- 캐스팅 실패(플레이어): 기존처럼 RespawnCharacter 호출
+- 캐스팅 성공 + ShouldRespawn = true: RespawnCharacter 호출
+- 캐스팅 성공 + ShouldRespawn = false: 액터 제거
+즉시 DestroyActor를 호출하면 몽타주나 컴포넌트 정리 중 문제가 발생할 가능성이 있으므로, SetLifeSpan(1.0)으로 제거를 예약하고 SetActorHiddenInGame(true)로 먼저 숨긴다.
+
+2. 체력바 가림 처리
+기존 체력바는 Screen Space이므로 벽 뒤에 있는 적의 체력바도 표시된다.
+
+BP_CC_EnemyBase의 Widget Component를 World Space로 변경하여 벽에 가려지도록 한다.
+
+World Space에서는 체력바가 적의 회전을 따르므로 Tick에서 카메라 방향으로 회전시킨다.
+- Get Player Controller → Get Player Camera Manager
+- 카메라 Forward Vector에 -1을 곱한다.
+- Make Rot from X로 회전을 구한다.
+- Set World Rotation으로 Widget Component에 적용한다.
+멀티플레이 환경에서는 Player Controller가 유효하지 않을 수 있으므로 IsValid 검사를 추가한다.
+
+3. 체력 회복 아이템
+기존 Mana Pickup을 재사용할 수 있도록 파티클과 Gameplay Effect Class를 변수로 분리한다.
+
+BP_HealthPickup을 자식 블루프린트로 생성하고, 회복용 파티클과 GE_AddHealth를 지정한다.
+
+GE_AddHealth는 기존 GE_AddMana를 복제하여 적용 Attribute를 Mana에서 Health로 변경한다.
+
+4. 데미지 및 회복 숫자 구분
+기존에는 Abs(NewValue - OldValue)로 변화량을 계산하므로 피해와 회복 모두 동일한 색상으로 표시되었다.
+
+Niagara System의 Color를 User.Color 파라미터로 변경한다.
+
+Health Bar에서 변화량의 부호에 따라 Set Niagara Variable (Linear Color)를 호출한다.
+
+5. Attribute Clamp
+회복 효과로 Health가 MaxHealth를 초과하는 문제를 해결한다.
+
+UCC_AttributeSet::PostGameplayEffectExecute에서 변경된 Attribute가 Health인지 확인한 뒤 값을 제한한다.
