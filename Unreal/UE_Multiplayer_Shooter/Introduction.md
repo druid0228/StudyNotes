@@ -27,3 +27,8 @@ UE5 C++을 사용하여 서버 권한(Server Authority) 기반의 멀티플레�
 - 각 강의별 GitHub Commit을 제공하여 코드 변경 사항을 비교할 수 있다.
 - Discord 커뮤니티와 Udemy Q&A를 통해 질문 및 멀티플레이 테스트가 가능하다.
 - 강의 중 선택적으로 수행하는 Challenge가 제공된다.
+
+
+### 3. About the Testing Channel
+
+Discord 멀티플레이 테스트 채널은 보안 문제로 폐쇄되었으며, 대신 PIE, LAN 또는 Windows Sandbox를 활용한 테스트를 권장한다.
