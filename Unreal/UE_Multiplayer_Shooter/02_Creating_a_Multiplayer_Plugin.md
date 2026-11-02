@@ -39,3 +39,50 @@ Peer-to-Peer, Client-Server 그리고 언리얼이 무엇을 쓰는지 배운다
 서버가 게임 상태에 대한 최종 권한을 가지며, 서버의 상태를 올바른 상태로 간주한다.
 
 프로젝트 구성에 따라 Listen Server 또는 Dedicated Server를 사용할 수 있다.
+
+### 5. Testing Multiplayer
+
+Unreal Engine에서 멀티플레이를 테스트하는 방법을 알아본다.
+
+**1) PIE (Play In Editor)**
+
+Unreal Editor에서는 별도의 패키징 없이 멀티플레이를 테스트할 수 있다.
+
+Play 설정의 Multiplayer Options에서 다음 항목을 설정한다.
+
+- **Number of Players:** 실행할 플레이어 인스턴스 수
+- **Net Mode**
+  - Play Standalone: 독립 실행, 서버에 자동 연결하지 않음
+  - Play As Listen Server: 에디터가 Listen Server 역할을 수행하며 나머지 인스턴스는 Client로 접속
+  - Play As Client: 백그라운드에 Dedicated Server를 생성하고 모든 플레이어 인스턴스가 Client로 접속
+
+PIE를 이용하면 별도의 PC 없이 Listen Server와 Dedicated Server 환경을 테스트할 수 있다.
+
+**2) LAN (Local Area Network)**
+
+동일한 로컬 네트워크에 연결된 PC끼리 IP 주소를 이용해 멀티플레이 게임에 접속하는 방식이다.
+
+강의에서는 `Lobby` 레벨을 생성하고 Character Blueprint에 다음 입력을 구현한다.
+
+- **1 키 (호스트):** `Open Level (by Name)`
+  - Level Name: `Lobby`
+  - Options: `listen`
+  - Lobby 레벨을 Listen Server로 실행하여 다른 플레이어의 접속을 허용한다.
+- **2 키 (클라이언트):** `Execute Console Command`
+  - Command: `open 192.168.x.x`
+  - 해당 IP 주소의 서버에 접속한다.
+
+서버 PC의 로컬 IP 주소는 Windows 명령 프롬프트에서 `ipconfig`로 확인할 수 있다.
+
+**3) Packaging & Testing**
+
+프로젝트를 Windows 대상으로 패키징하여 다른 PC에서도 실행할 수 있도록 한다.
+
+- `Platforms → Windows → Package Project`
+- 생성된 실행 파일뿐 아니라 관련 파일이 포함된 전체 패키징 폴더를 다른 PC로 복사한다.
+- 호스트 PC에서 게임 실행 후 `1` 키로 Listen Server를 시작한다.
+- 클라이언트 PC에서 게임 실행 후 `2` 키로 호스트에 접속한다.
+
+이를 통해 실제 두 PC 사이에서 LAN 멀티플레이 동작을 확인할 수 있다.
+
+다음 강의에서는 이러한 LAN 연결 과정을 C++로 구현한다.
