@@ -86,3 +86,42 @@ PIE를 이용하면 별도의 PC 없이 Listen Server와 Dedicated Server 환경
 이를 통해 실제 두 PC 사이에서 LAN 멀티플레이 동작을 확인할 수 있다.
 
 다음 강의에서는 이러한 LAN 연결 과정을 C++로 구현한다.
+
+
+### 6. LAN Connection
+
+Lan 접속 BP에서 구현해 두었던 것을 C++에서도 구현해본다.
+
+
+UFUNCTION(BlueprintCallable)
+```cpp
+void OpenLobby();
+
+void CallOpenLevel(const FString& Address)
+
+void CallClientTravel(const FString& Address)
+```
+이렇게 작성했다.
+
+OpenLobby는 `World->ServerTravel("/Game/ThirdPerson/Lobby?listen")`를 호출했다.
+- ServerTravel: 서버에서 레벨을 전환하며 연결된 클라이언트도 함께 이동시킨다.
+- ?listen: Listen Server로 접속을 받을 수 있도록 설정하는 옵션이다.
+
+경로는 level의 우클릭 copy path를 한 뒤에 Content 부분을 Game으로 바꾸고 그 이하를 사용하면 된다.
+
+CallOpenLevel는 `UGameplayStatics::OpenLevel(this,*Address)` 를 호출했다.
+
+CallClientTravel에서는 `GetGameInstance()->GetFirstLocalPlayerController()`로 PlayerController를 얻고\
+`PlayerController->ClientTravel(Address,TRAVEL_Absolute)`를 호출했다.
+
+이후 Package Project를 해서 생성된 exe에서\
+로비를 열고 Client들이 참가 하는 것을 확인했다.
+
+주의: 강의와 다르게 exe에서 로비 생성이 안되었었음. Lobby Map이 포함되지 않았던 것으로 추정\
+Project Settings → Packaging 에서 Cook everything in the project content directory 체크
+
+
+정리
+* ServerTravel: 서버가 레벨을 전환하고, 현재 연결된 클라이언트들도 함께 이동시킨다.
+* OpenLevel: 현재 게임 인스턴스에서 새로운 맵을 열거나 지정한 IP의 서버에 접속한다. 기존 World를 새로 로드하는 Non-Seamless Travel 방식이다.
+* ClientTravel: 특정 PlayerController를 기준으로 클라이언트를 다른 맵이나 서버로 이동시킨다. 클라이언트가 직접 호출하거나 서버가 특정 클라이언트의 이동을 지시할 때 사용한다.
