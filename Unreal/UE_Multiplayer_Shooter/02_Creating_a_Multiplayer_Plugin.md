@@ -125,3 +125,32 @@ Project Settings → Packaging 에서 Cook everything in the project content dir
 * ServerTravel: 서버가 레벨을 전환하고, 현재 연결된 클라이언트들도 함께 이동시킨다.
 * OpenLevel: 현재 게임 인스턴스에서 새로운 맵을 열거나 지정한 IP의 서버에 접속한다. 기존 World를 새로 로드하는 Non-Seamless Travel 방식이다.
 * ClientTravel: 특정 PlayerController를 기준으로 클라이언트를 다른 맵이나 서버로 이동시킨다. 클라이언트가 직접 호출하거나 서버가 특정 클라이언트의 이동을 지시할 때 사용한다.
+
+
+
+### 7. Online Subsystem
+
+
+01. IP Addresses
+* Local IP Address: 같은 로컬 네트워크 내부에서 사용하는 IP 주소. 일반적으로 공유기가 각 기기에 할당한다.
+* Public IP Address: 외부 인터넷과 통신할 때 사용하는 공인 IP 주소. 일반적인 가정용 네트워크에서는 공유기 측에 할당된다.
+
+LAN에서는 Local IP로 통신할 수 있지만, 외부 네트워크의 유저와 연결하려면 Public IP를 통한 접근이 필요하다.
+
+일반적인 온라인 게임에서는 상대방의 IP를 직접 입력하는 대신, 중간 서버나 온라인 서비스를 통해 게임 세션을 검색하고 참가한다.
+
+
+02. Online Subsystem
+Unreal Engine이 제공하는 온라인 서비스용 Abstraction Layer이다.
+
+Steam, Xbox Live 등의 온라인 서비스마다 서로 다른 API를 직접 사용하는 대신, Unreal Engine의 공통 인터페이스를 통해 기능을 구현할 수 있다.
+
+* 서비스별 구현 차이를 추상화하여 플랫폼 종속성을 줄인다.
+* 온라인 세션 생성, 검색, 참가 등의 기능을 제공한다.
+* 사용하는 온라인 서비스는 프로젝트 설정에 따라 선택할 수 있다.
+
+
+이번 강의에서는 Steam Online Subsystem을 사용하여 IP 주소를 직접 입력하지 않고 다른 플레이어의 게임 세션에 참가하는 시스템을 구현할 예정이다.
+
+이 시스템을 Plugin으로 제작해 이후 다른 Unreal Engine 프로젝트에서도 재사용할 수 있도록 한다.
+
